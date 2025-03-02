@@ -1,0 +1,5 @@
+transformers==4.38.2
+torch>=2.0.0
+PyQt6
+numpy
+bitsandbytes

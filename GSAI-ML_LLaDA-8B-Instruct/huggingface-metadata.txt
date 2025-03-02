@@ -1,0 +1,10 @@
+url: https://huggingface.co/GSAI-ML/LLaDA-8B-Instruct
+branch: main
+download date: 2025-02-28 11:32:41
+sha256sum:
+    ff6699df9635a267fb4ac801ea8012d39b21bb22ed290d5a57128521b889c230 model-00001-of-00006.safetensors
+    b8ddf571b47f57ce654913877f3625d2c7b9a4c3f81cb6f41f6c3055473b0281 model-00002-of-00006.safetensors
+    8347db2fd61a3b5bad2970c2f83ecb84b93632e276a41ca169dcc5efae15462c model-00003-of-00006.safetensors
+    93d8706872e7432d5cd40c9a61f9f9d270c101828cef2adaf27c67743d3dcf1a model-00004-of-00006.safetensors
+    ff5f765eb7ec8bfdbe3b962a9e920d71de43d55e04eb4844710c0efcc8855092 model-00005-of-00006.safetensors
+    f25d4cc57b24a79a840d49c3b25d9a22dd5caf3a9766f591e4625377901194e2 model-00006-of-00006.safetensors

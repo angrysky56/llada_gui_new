@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=LLaDA GUI
+Comment=Graphical interface for the LLaDA language model
+Exec=/home/ty/Repositories/ai_workspace/llada_gui/venv/bin/python /home/ty/Repositories/ai_workspace/llada_gui/run.py
+Icon=utilities-terminal
+Terminal=false
+Categories=Development;Science;AI;
+Keywords=AI;LLM;Diffusion;

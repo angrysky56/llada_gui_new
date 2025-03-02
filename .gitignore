@@ -1,0 +1,61 @@
+# Python virtual environment
+venv/
+.venv/
+env/
+.env/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# PyCharm, VS Code and other IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Model files and cache
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.model
+*.index.json
+__models__/
+.cache/
+
+# Logs and databases
+*.log
+*.sqlite
+*.db
+
+# Output files and temporary data
+outputs/
+runs/
+temp/
+tmp/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment variables
+.env
+.env.local
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
