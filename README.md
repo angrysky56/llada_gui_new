@@ -2,7 +2,8 @@
 
 A graphical user interface for interacting with the LLaDA (Large Language Diffusion with mAsking) model.
 
-![LLaDA GUI Screenshot](https://i.ibb.co/GJbRRJH/llada-gui-screenshot.png)
+![LLaDA GUI Screenshot](![image](https://github.com/user-attachments/assets/db0b378a-61c3-4934-b422-ea0b925e2c5c)
+)
 
 ## Overview
 
