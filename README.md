@@ -29,6 +29,10 @@ This is a GUI wrapper for the [LLaDA model](https://github.com/ML-GSAI/LLaDA), a
   - 4-bit and 8-bit quantization options
   - CPU fallback for low-memory situations
   - Automatic parameter adjustment based on available memory
+- **Performance Optimizations**: Built-in tools to improve performance:
+  - Memory-efficient settings for lower GPU usage
+  - Attention slicing for handling larger prompts
+  - Precision control for speed/memory tradeoffs
 
 ## Requirements
 
@@ -110,6 +114,40 @@ If you encounter out-of-memory errors:
 1. Reduce Generation Length and Sampling Steps
 2. Try 8-bit or 4-bit quantization options
 3. Switch to CPU mode if necessary (will be slower but more reliable)
+4. Use the built-in performance optimizer (described below)
+
+## Performance Optimization
+
+This application includes built-in performance optimization tools that can significantly reduce memory usage and improve generation speed.
+
+### Using the Optimizer
+
+1. **Launch the optimizer**:
+   ```
+   python optimize_launcher.py
+   ```
+   
+   Or use the desktop shortcut:
+   Double-click the `LLaDA_Optimizer.desktop` file.
+
+2. **Select optimizations** in the GUI:
+   - GPU Memory Optimizations
+   - Config File Patches
+   - Worker Code Optimizations
+
+3. **Apply optimizations** by clicking "Apply Optimizations"
+
+4. **Restart the application** to use the optimized version
+
+For more details, see the [optimization documentation](optimizations/README.md).
+
+## Experimental ONNX Support
+
+The repository also includes experimental ONNX export and optimization tools that can potentially provide further performance improvements.
+
+> Note: ONNX support is experimental and may not work on all systems or with all configurations.
+
+To learn more about the ONNX integration, see the [ONNX documentation](onnx/README.md).
 
 ## Understanding Diffusion in LLaDA
 
@@ -135,6 +173,8 @@ The application is organized into the following components:
 - `config.py`: Application configuration and constants
 - `utils.py`: Utility functions
 - `run.py`: Entry point script
+- `optimizations/`: Performance optimization tools
+- `onnx/`: Experimental ONNX conversion utilities
 
 ## Acknowledgements
 

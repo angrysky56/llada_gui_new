@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=LLaDA Optimizer
+Comment=Apply performance optimizations to LLaDA GUI
+Exec=/home/ty/Repositories/ai_workspace/llada_gui/venv/bin/python /home/ty/Repositories/ai_workspace/llada_gui/optimize_launcher.py
+Icon=utilities-system-monitor
+Terminal=false
+Categories=Development;Science;AI;
+Keywords=AI;LLM;Diffusion;Optimize;

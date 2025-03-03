@@ -34,6 +34,12 @@ DEFAULT_PARAMS = {
 }
 
 # Memory-related constants
+# Memory optimization constants
+OPTIMIZED_GPU_MEMORY = True
+CACHE_PRECISION = "bfloat16"  # Use bfloat16 for better performance with minimal precision loss
+ENABLE_ATTENTION_SLICING = True  # Slice attention for lower memory usage
+ENABLE_FLASH_ATTENTION = True  # Use flash attention if available
+
 MEMORY_CHECK_INTERVAL = 1.0  # seconds
 MEMORY_WARNING_THRESHOLD = 90  # percentage
 MEMORY_CAUTION_THRESHOLD = 75  # percentage

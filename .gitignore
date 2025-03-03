@@ -1,3 +1,13 @@
+# Explicitly ignore these directories
+venv/
+GSAI-ML_LLaDA-8B-Instruct/
+__pycache__/
+onnx_models/
+
+# Ignore any HuggingFace cache
+.cache/
+.huggingface/
+
 # Python virtual environment
 venv/
 .venv/
@@ -32,6 +42,8 @@ build/
 *.index.json
 __models__/
 .cache/
+# Keep ONNX models for reference, uncomment below to ignore them
+# onnx_models/
 
 # Logs and databases
 *.log
@@ -59,3 +71,17 @@ tmp/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Backup files
+*.backup
+*.bak
+*.old
+
+# HuggingFace downloaded models
+# For LLaDA model, this is handled manually as a local dependency
+GSAI-ML_LLaDA-8B-Instruct/
+
+# Exclude ONNX external data files
+*.onnx.data
+# But keep the .onnx model files
+!*.onnx
