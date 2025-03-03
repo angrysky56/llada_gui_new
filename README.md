@@ -7,7 +7,8 @@ A graphical user interface for interacting with the LLaDA (Large Language Diffus
 
 Currently maxes out my 12gb VRAM using 4 bit (reads around 20gb) but the new optimizations are working well and much faster- maybe 10x.
 
-![image](https://github.com/user-attachments/assets/9b788bbd-5224-44ec-90ac-be25b033baa2)
+![image](https://github.com/user-attachments/assets/062e15e0-98f9-4898-82d2-c297533817d1)
+
 
 Uses around 40gb RAM in CPU mode.
 
