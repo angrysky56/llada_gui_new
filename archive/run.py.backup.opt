@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Runner script for the LLaDA GUI application with optimized generation.
+Runner script for the LLaDA GUI application.
 """
 
 import os

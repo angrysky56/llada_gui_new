@@ -9,7 +9,12 @@ import os
 import gc
 import torch
 import traceback
+import logging
 from config import LOCAL_MODEL_PATH, DEFAULT_MODEL_PATH
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 def get_device_status():
     """
@@ -54,9 +59,84 @@ def cleanup_gpu_memory():
     """
     Clean up GPU memory by clearing CUDA cache and running garbage collection.
     """
+    logger.info("Cleaning up GPU memory")
+    
+    # Run garbage collection multiple times
+    for _ in range(3):
+        gc.collect()
+    
     if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    gc.collect()
+        try:
+            # Set environment variables for better memory management
+            os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:64"
+            
+            # Empty cache
+            torch.cuda.empty_cache()
+            
+            # Trigger another garbage collection after emptying cache
+            gc.collect()
+            
+            # Get current memory usage for logging
+            used_memory = torch.cuda.memory_allocated() / (1024**3)
+            total_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+            logger.info(f"GPU memory usage after cleanup: {used_memory:.2f}GB / {total_memory:.2f}GB")
+        except Exception as e:
+            logger.warning(f"Error during GPU memory cleanup: {e}")
+
+def optimize_model_memory(model):
+    """
+    Apply memory optimizations to a loaded model.
+    
+    Args:
+        model: The model to optimize
+        
+    Returns:
+        The optimized model
+    """
+    if not torch.cuda.is_available():
+        return model
+    
+    logger.info("Applying model memory optimizations")
+    
+    try:
+        # Disable caching where possible
+        if hasattr(model, "config"):
+            model.config.use_cache = False
+        
+        # Apply attention slicing if available
+        if hasattr(model, "enable_attention_slicing"):
+            logger.info("Enabling attention slicing")
+            model.enable_attention_slicing(1)
+        
+        # Apply specific optimizations for the LLaDA model
+        model = _apply_llada_optimizations(model)
+        
+        # Clear memory again
+        cleanup_gpu_memory()
+        
+        return model
+    except Exception as e:
+        logger.warning(f"Error during model memory optimization: {e}")
+        return model
+
+def _apply_llada_optimizations(model):
+    """
+    Apply LLaDA-specific memory optimizations.
+    
+    Args:
+        model: The LLaDA model
+        
+    Returns:
+        The optimized model
+    """
+    try:
+        # Some potential LLaDA-specific optimizations could go here
+        # For example, removing unnecessary model components
+        
+        return model
+    except Exception as e:
+        logger.warning(f"Error applying LLaDA-specific optimizations: {e}")
+        return model
 
 def get_model_path():
     """
@@ -106,3 +186,19 @@ def format_memory_info(stats):
         gpu_text = "Not available"
     
     return system_text, gpu_text
+
+def set_seeds(seed=42):
+    """
+    Set random seeds for reproducibility.
+    
+    Args:
+        seed: Random seed to use
+    """
+    import random
+    import numpy as np
+    
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)

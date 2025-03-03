@@ -19,7 +19,7 @@ class TokenVisualizer(QWidget):
     
     def __init__(self, token_text="", confidence=0.0, is_masked=True, parent=None):
         super().__init__(parent)
-        self.token_text = token_text
+        self.token_text = str(token_text)  # Convert to string to prevent type issues
         self.confidence = confidence
         self.is_masked = is_masked
         self.setMinimumSize(60, 30)
@@ -60,8 +60,8 @@ class TokenVisualizer(QWidget):
         painter.setPen(text_color)
         painter.setFont(QFont("Monospace", 8))
         
-        # Handle different token text lengths
-        display_text = self.token_text
+        # Handle different token text lengths - ensure we're working with a string
+        display_text = str(self.token_text)
         if len(display_text) > 8:
             display_text = display_text[:7] + "…"
         
@@ -131,8 +131,41 @@ class DiffusionVisualizer(QWidget):
     
     def update_step(self, step, tokens, mask_indices, confidences=None):
         """Update the visualization for the current diffusion step."""
+        if not isinstance(tokens, list):
+            # If tokens is not a list, try to convert it
+            try:
+                if hasattr(tokens, 'tolist'):  # For numpy arrays or torch tensors
+                    tokens = tokens.tolist()
+                else:
+                    tokens = [tokens]  # If it's a single value, make it a list
+            except:
+                tokens = ["?"]  # Fallback for unconvertible types
+        
+        if not isinstance(mask_indices, list):
+            try:
+                if hasattr(mask_indices, 'tolist'):
+                    mask_indices = mask_indices.tolist()
+                else:
+                    mask_indices = [bool(mask_indices)]
+            except:
+                mask_indices = [True]
+        
         if confidences is None:
             confidences = [0.5] * len(tokens)
+        elif not isinstance(confidences, list):
+            try:
+                if hasattr(confidences, 'tolist'):
+                    confidences = confidences.tolist()
+                else:
+                    confidences = [float(confidences)]
+            except:
+                confidences = [0.5] * len(tokens)
+        
+        # Ensure all lists are the same length
+        max_len = max(len(tokens), len(mask_indices), len(confidences))
+        tokens = tokens + ["?"] * (max_len - len(tokens))
+        mask_indices = mask_indices + [True] * (max_len - len(mask_indices))
+        confidences = confidences + [0.5] * (max_len - len(confidences))
         
         self.current_step = step
         
@@ -141,10 +174,11 @@ class DiffusionVisualizer(QWidget):
             if i < len(self.token_grid):
                 # Update the current and all future steps
                 for j in range(step, self.max_steps + 1):
-                    self.token_grid[i][j].token_text = token
-                    self.token_grid[i][j].is_masked = masked
-                    self.token_grid[i][j].confidence = conf
-                    self.token_grid[i][j].update()
+                    if j < len(self.token_grid[i]):
+                        self.token_grid[i][j].token_text = str(token)
+                        self.token_grid[i][j].is_masked = bool(masked)
+                        self.token_grid[i][j].confidence = float(conf)
+                        self.token_grid[i][j].update()
         
         # Update step label
         self.step_label.setText(f"Diffusion Process: Step {step} of {self.max_steps}")
@@ -175,11 +209,33 @@ class DiffusionProcessVisualizer(QGroupBox):
     
     def setup_process(self, num_tokens, num_steps):
         """Set up the visualization process."""
-        self.visualizer.setup_visualization(num_tokens, num_steps)
+        try:
+            # Ensure we're working with integers
+            num_tokens = int(num_tokens)
+            num_steps = int(num_steps)
+            
+            # Apply reasonable limits
+            num_tokens = min(max(num_tokens, 1), 256)
+            num_steps = min(max(num_steps, 1), 128)
+            
+            self.visualizer.setup_visualization(num_tokens, num_steps)
+        except Exception as e:
+            import logging
+            logging.error(f"Error in setup_process: {e}")
+            # Set up with default values if there's an error
+            self.visualizer.setup_visualization(16, 8)
     
     def update_process(self, step, tokens, mask_indices, confidences=None):
         """Update the visualization for the current step."""
-        self.visualizer.update_step(step, tokens, mask_indices, confidences)
+        try:
+            # Make sure step is an integer
+            step = int(step)
+            
+            # Update visualization
+            self.visualizer.update_step(step, tokens, mask_indices, confidences)
+        except Exception as e:
+            import logging
+            logging.error(f"Error in update_process: {e}")
 
 
 if __name__ == "__main__":

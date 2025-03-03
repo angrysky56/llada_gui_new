@@ -25,6 +25,7 @@ else:
 
 # Default generation parameters
 DEFAULT_PARAMS = {
+    # Optimized parameters for better performance and memory usage
     'gen_length': 64,
     'steps': 64,
     'block_length': 32,

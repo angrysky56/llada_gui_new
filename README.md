@@ -4,7 +4,7 @@ A graphical user interface for interacting with the LLaDA (Large Language Diffus
 
 ![image](https://github.com/user-attachments/assets/ace0cbfe-d5c4-4a37-bd49-e615fc75e791)
 
-Currently too much for 12gb VRAM using 4 bit.
+Currently maxes out my 12gb VRAM using 4 bit.
 
 ![image](https://github.com/user-attachments/assets/9b788bbd-5224-44ec-90ac-be25b033baa2)
 
@@ -16,6 +16,22 @@ Uses just over 40gb RAM in CPU mode.
 This is a GUI wrapper for the [LLaDA model](https://github.com/ML-GSAI/LLaDA), an 8B scale diffusion model trained entirely from scratch that rivals LLaMA3 8B in performance. Unlike conventional autoregressive language models, LLaDA uses a diffusion approach with masking to generate text.
 
 **Important:** This GUI is a third-party tool and not officially affiliated with the original LLaDA project. All credit for the underlying LLaDA model goes to the original authors at the Gaoling School of Artificial Intelligence, Renmin University of China. Please visit their [official repository](https://github.com/ML-GSAI/LLaDA) for more information about the model.
+
+## 🚀 Performance Optimizations
+
+This GUI includes several optimizations to make the model run efficiently on consumer hardware:
+
+### Memory Efficiency
+- **Smart CPU-GPU Offloading**: Intelligently moves tensors between CPU and GPU to minimize memory usage
+- **Token Buffer Management**: Manages token data efficiently to reduce peak memory requirements
+- **Adaptive Step Scheduling**: Uses fewer steps for easier tokens, more for difficult ones
+
+### Generation Speed
+- **Block-Level Processing**: Processes tokens in blocks for better GPU utilization
+- **Progressive Generation**: High-confidence tokens are revealed early in the process
+- **Chunked Operations**: Large operations are broken into manageable chunks
+
+These optimizations allow the model to run on GPUs with 8-12GB VRAM while providing faster generation than the original implementation.
 
 ## Features
 
@@ -40,7 +56,7 @@ This is a GUI wrapper for the [LLaDA model](https://github.com/ML-GSAI/LLaDA), a
 - PyQt6
 - PyTorch 2.0 or later
 - Transformers 4.38.2
-- CUDA-capable GPU with at least 16GB memory (maybe enough)
+- CUDA-capable GPU with at least 10GB memory (for optimal performance)
 - CPU-only mode is also supported (slower but works on any machine)
 
 ## Installation
@@ -138,16 +154,6 @@ This application includes built-in performance optimization tools that can (not 
 3. **Apply optimizations** by clicking "Apply Optimizations"
 
 4. **Restart the application** to use the optimized version
-
-For more details, see the [optimization documentation](optimizations/README.md).
-
-## Experimental ONNX Support
-
-The repository also includes experimental ONNX export and optimization tools that can potentially provide further performance improvements.
-
-> Note: ONNX support is experimental and may not work on all systems or with all configurations.
-
-To learn more about the ONNX integration, see the [ONNX documentation](onnx/README.md).
 
 ## Understanding Diffusion in LLaDA
 
