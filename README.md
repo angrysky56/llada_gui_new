@@ -4,7 +4,7 @@ A graphical user interface for interacting with the LLaDA (Large Language Diffus
 
 ![image](https://github.com/user-attachments/assets/ace0cbfe-d5c4-4a37-bd49-e615fc75e791)
 
-Currently maxes out my 12gb VRAM using 4 bit.
+Currently too much for 12gb VRAM using 4 bit.
 
 ![image](https://github.com/user-attachments/assets/9b788bbd-5224-44ec-90ac-be25b033baa2)
 
@@ -40,7 +40,7 @@ This is a GUI wrapper for the [LLaDA model](https://github.com/ML-GSAI/LLaDA), a
 - PyQt6
 - PyTorch 2.0 or later
 - Transformers 4.38.2
-- CUDA-capable GPU with at least 10GB memory (for optimal performance)
+- CUDA-capable GPU with at least 16GB memory (maybe enough)
 - CPU-only mode is also supported (slower but works on any machine)
 
 ## Installation
@@ -118,7 +118,7 @@ If you encounter out-of-memory errors:
 
 ## Performance Optimization
 
-This application includes built-in performance optimization tools that can significantly reduce memory usage and improve generation speed.
+This application includes built-in performance optimization tools that can (not really yet) significantly reduce memory usage and improve generation speed.
 
 ### Using the Optimizer
 
