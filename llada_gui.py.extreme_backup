@@ -434,36 +434,23 @@ an 8B scale diffusion model for language generation.</p>
         # Get configuration from UI
         config = self.get_generation_config()
         
-        # Add warnings for extreme mode settings
+        # Add warning for extreme mode - only limit generation length, not steps
         if self.extreme_mode.isChecked():
-            warnings = []
-            
+            # Only limit generation length for memory safety
             if config['gen_length'] > 64:
-                warnings.append(f"- Generation Length: {config['gen_length']} (recommended: 64 or less)")
-                
-            if config['block_length'] > 32:
-                warnings.append(f"- Block Length: {config['block_length']} (recommended: 32 or less)")
+                QMessageBox.warning(
+                    self,
+                    "Extreme Memory Mode Warning",
+                    "Generation length has been reduced to 64 for Extreme Memory Mode. "
+                    "Longer generations may cause out-of-memory errors."
+                )
+                self.gen_length_spin.setValue(64)
+                config['gen_length'] = 64
             
-            if warnings:
-                        result = QMessageBox.warning(
-            self,
-            "Extreme Memory Mode Warning",
-            "You're using parameters that exceed the recommended limits for Extreme Memory Mode:\n\n" + 
-            "\n".join(warnings) + 
-            "\n\nThese settings may cause out-of-memory errors on GPUs with limited VRAM (8-12GB)." +
-            "\n\nDo you want to continue with these settings?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
-)                
-            if result == QMessageBox.StandardButton.No:
-                    # User chose to use recommended values
-                    if config['gen_length'] > 64:
-                        self.gen_length_spin.setValue(64)
-                        config['gen_length'] = 64
-                        
-                    if config['block_length'] > 32:
-                        self.block_length_spin.setValue(32)
-                        config['block_length'] = 32
+            # Ensure block length is appropriate
+            if config['block_length'] > 32:
+                self.block_length_spin.setValue(32)
+                config['block_length'] = 32
         
         # Disable input controls during generation
         self.set_controls_enabled(False)
