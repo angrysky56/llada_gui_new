@@ -2,11 +2,13 @@
 
 A graphical user interface for interacting with the LLaDA (Large Language Diffusion with mAsking) model.
 
-![image](https://github.com/user-attachments/assets/ace0cbfe-d5c4-4a37-bd49-e615fc75e791)
+![image](https://github.com/user-attachments/assets/3c189491-0a68-4fbb-998d-69a4865a02d7)
 
-Currently maxes out my 12gb VRAM using 4 bit (reads around 20gb) but the new optimizations are working well and much faster.
 
-![image](https://github.com/user-attachments/assets/9b788bbd-5224-44ec-90ac-be25b033baa2)
+Currently maxes out my 12gb VRAM using 4 bit (reads around 20gb) but the new optimizations are working well and much faster- maybe 10x.
+
+![image](https://github.com/user-attachments/assets/062e15e0-98f9-4898-82d2-c297533817d1)
+
 
 Uses around 40gb RAM in CPU mode.
 
