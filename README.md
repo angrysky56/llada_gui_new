@@ -9,6 +9,7 @@ Currently maxes out my 12gb VRAM using 4 bit (reads around 20gb) but the new opt
 
 ![image](https://github.com/user-attachments/assets/062e15e0-98f9-4898-82d2-c297533817d1)
 
+![image](https://github.com/user-attachments/assets/c3404d4c-d0c0-41c0-b4be-128565ce6459)
 
 Uses around 40gb RAM in CPU mode.
 
