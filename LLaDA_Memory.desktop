@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=LLaDA GUI with Memory
+Comment=LLaDA GUI with integrated cognitive memory
+Exec=/home/ty/Repositories/ai_workspace/llada_gui/memory_integration_auto.py
+Icon=text-editor
+Terminal=false
+Categories=Development;
