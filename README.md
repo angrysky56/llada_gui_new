@@ -18,7 +18,9 @@ Currently maxes out my 12gb VRAM using 4 bit (reads around 20gb) but the new opt
 ./start_memory_optimized.sh
 ```
 
-Prototype memory system now available, slower and VRAM intensive. Derived from:
+Prototype memory system now available, slower and VRAM intensive. 
+Derived from:
+
 https://github.com/synthience/mcp-titan-cognitive-memory
 
 Generally uses around 40gb RAM in CPU mode.
