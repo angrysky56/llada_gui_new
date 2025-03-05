@@ -11,7 +11,11 @@ Currently maxes out my 12gb VRAM using 4 bit (reads around 20gb) but the new opt
 
 ![image](https://github.com/user-attachments/assets/c3404d4c-d0c0-41c0-b4be-128565ce6459)
 
-Uses around 40gb RAM in CPU mode.
+![image](https://github.com/user-attachments/assets/c6f6e8c5-f163-4ab9-b929-6cdbba89c2fa)
+
+Primitive Memory system now available, slower and VRAM intensive.
+
+Generally uses around 40gb RAM in CPU mode.
 
 
 ## Overview
