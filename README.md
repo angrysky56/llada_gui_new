@@ -1,5 +1,9 @@
 # LLaDA GUI
 
+# New version available that is slightly more functional-
+
+https://github.com/angrysky56/llada_gui_new/tree/main
+
 A graphical user interface for interacting with the LLaDA (Large Language Diffusion with mAsking) model.
 
 ![image](https://github.com/user-attachments/assets/3c189491-0a68-4fbb-998d-69a4865a02d7)
