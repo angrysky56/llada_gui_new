@@ -2,7 +2,7 @@
 # LLaDA GUI new version
 
 # 3/8/25 Much thanks to automenta for the advanced work.
-https://github.com/angrysky56/llada_gui_new/pull/2
+[GUI Remix, Refactoring, Optimization](https://github.com/angrysky56/llada_gui_new/pull/2)
 
 # Currently you can run inference but the memory system is only partly functional ie it will make some vectors, but the rest of the memory model system is not properly integrated and only uses dummy output. Sorry not a coder.
 
