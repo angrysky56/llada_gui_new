@@ -1,25 +1,25 @@
 {
-    "mcpServers": {
-        "prover9-mcp": {
-            "runtime": "node",
-            "command": "node",
-            "args": [
-                "/home/ty/Repositories/ai_workspace/prover9_mcp_server/server.js"
-            ],
-            "env": {
-                "PROVER9_PATH": "/home/ty/Repositories/prover9/Prover9/bin/prover9",
-                "MACE4_PATH": "/home/ty/Repositories/prover9/Prover9/bin/mace4"
-            }
-        },
-        "titan-memory-mcp": {
-            "runtime": "node",
-            "command": "node",
-            "args": [
-                "/home/ty/Repositories/ai_workspace/llada_gui_new/core/memory/memory_server/server.js"
-            ],
-            "env": {
-                "PORT": "3000"
-            }
-        }
+  "mcpServers": {
+    "prover9-mcp": {
+      "runtime": "node",
+      "command": "node",
+      "args": [
+        "/home/ty/Repositories/ai_workspace/prover9_mcp_server/server.js"
+      ],
+      "env": {
+        "PROVER9_PATH": "/home/ty/Repositories/prover9/Prover9/bin/prover9",
+        "MACE4_PATH": "/home/ty/Repositories/prover9/Prover9/bin/mace4"
+      }
+    },
+    "titan-memory-mcp": {
+      "runtime": "node",
+      "command": "node",
+      "args": [
+        "/home/ty/Repositories/ai_workspace/llada_gui_new/core/memory/memory_server/server.js"
+      ],
+      "env": {
+        "PORT": "3000"
+      }
     }
+  }
 }

@@ -7,10 +7,10 @@ Direct launcher for LLaDA GUI with memory integration.
 This script directly runs the LLaDA GUI from the correct module path.
 """
 
-import os
-import sys
-import subprocess
 import logging
+import os
+import subprocess
+import sys
 
 # Configure logging
 logging.basicConfig(
@@ -19,17 +19,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger("llada_launcher")
 
+
 def find_venv_python():
     """Find the Python executable in the virtual environment."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     venv_dir = os.path.join(script_dir, 'venv')
-    
+
     if os.path.isdir(venv_dir):
         venv_python = os.path.join(venv_dir, 'bin', 'python')
         if os.path.isfile(venv_python):
             return venv_python
-    
+
     return sys.executable
+
 
 def kill_processes():
     """Kill any existing memory server processes."""
@@ -44,11 +46,12 @@ def kill_processes():
         logger.error(f"Error killing processes: {e}")
         return False
 
+
 def run_fix_script():
     """Run the memory database fix script."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     fix_script = os.path.join(script_dir, 'fix_memory_db.py')
-    
+
     if os.path.exists(fix_script):
         try:
             subprocess.run([find_venv_python(), fix_script], check=True)
@@ -60,20 +63,21 @@ def run_fix_script():
         logger.error(f"Fix script not found: {fix_script}")
         return False
 
+
 def main():
     """Main function."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    
+
     # First, kill any existing memory server processes
     kill_processes()
-    
+
     # Run the fix script
     run_fix_script()
-    
+
     # Now run the main GUI in this process directly
     # Execute the GUI module directly
     sys.path.insert(0, script_dir)  # Add script dir to path
-    
+
     # Import the module from the correct location
     try:
         if os.path.exists(os.path.join(script_dir, 'gui', 'llada_gui.py')):
@@ -83,13 +87,13 @@ def main():
             # Fall back to import from the main directory
             import llada_gui
             main = llada_gui.main
-            
+
         # Run the main function
         main()
         return 0
     except ImportError as e:
         logger.error(f"Error importing GUI module: {e}")
-        
+
         # As a last resort, try to run the original script using subprocess
         run_script = os.path.join(script_dir, 'run.py')
         if os.path.exists(run_script):
@@ -102,6 +106,7 @@ def main():
         else:
             return 1
 
+
 if __name__ == "__main__":
     # Check if we're already running in the right Python
     if 'VENV_ACTIVATED' not in os.environ:
@@ -110,5 +115,5 @@ if __name__ == "__main__":
             # Re-launch with the Python from the virtual environment
             os.environ['VENV_ACTIVATED'] = '1'
             os.execl(venv_python, venv_python, *sys.argv)
-    
+
     sys.exit(main())

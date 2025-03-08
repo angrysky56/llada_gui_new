@@ -8,13 +8,12 @@ This script creates a simple fallback memory server that runs without
 depending on the server_manager module.
 """
 
+import logging
 import os
+import signal
+import subprocess
 import sys
 import time
-import logging
-import subprocess
-import signal
-from pathlib import Path
 
 # Configure logging
 logging.basicConfig(
@@ -24,11 +23,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger("memory_server_fallback")
 
+
 def is_port_in_use(port=3000):
     """Check if the port is in use."""
     import socket
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(('localhost', port)) == 0
+
 
 def find_processes_using_port(port=3000):
     """Find processes using the specified port."""
@@ -38,6 +39,7 @@ def find_processes_using_port(port=3000):
         return [int(pid) for pid in output.strip().split('\n') if pid]
     except subprocess.SubprocessError:
         return []
+
 
 def kill_process(pid, force=False):
     """Kill a process by PID."""
@@ -50,42 +52,45 @@ def kill_process(pid, force=False):
     except:
         return False
 
+
 def find_venv_python():
     """Find the Python executable in the virtual environment."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     venv_dir = os.path.join(script_dir, 'venv')
-    
+
     if os.path.isdir(venv_dir):
         venv_python = os.path.join(venv_dir, 'bin', 'python')
         if os.path.isfile(venv_python):
             return venv_python
-    
+
     return sys.executable
+
 
 def get_server_script_path():
     """Get the path to the server script."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     server_py = os.path.join(script_dir, 'core', 'memory', 'memory_server', 'server.py')
     server_js = os.path.join(script_dir, 'core', 'memory', 'memory_server', 'server.js')
-    
+
     # Prefer Python server
     if os.path.isfile(server_py):
         return 'python', server_py
     elif os.path.isfile(server_js):
         return 'node', server_js
-    
+
     # If no server is found, create a minimal one
     return create_minimal_server()
+
 
 def create_minimal_server():
     """Create a minimal memory server if none exists."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     memory_server_dir = os.path.join(script_dir, 'core', 'memory', 'memory_server')
     server_py = os.path.join(memory_server_dir, 'server.py')
-    
+
     # Create directory if it doesn't exist
     os.makedirs(memory_server_dir, exist_ok=True)
-    
+
     # Write minimal server
     with open(server_py, 'w') as f:
         f.write("""#!/usr/bin/env python
@@ -195,15 +200,16 @@ if __name__ == '__main__':
     logger.info(f"Starting fallback memory server on {args.host}:{args.port}")
     app.run(host=args.host, port=args.port)
 """)
-    
+
     # Make it executable
     os.chmod(server_py, 0o755)
     return 'python', server_py
 
+
 def install_dependencies():
     """Install required dependencies."""
     python_exe = find_venv_python()
-    
+
     try:
         logger.info("Installing required dependencies...")
         subprocess.check_call([
@@ -215,6 +221,7 @@ def install_dependencies():
         logger.error(f"Failed to install dependencies: {e}")
         return False
 
+
 def stop_existing_servers():
     """Stop any existing memory server processes."""
     # Check if port is in use
@@ -224,31 +231,32 @@ def stop_existing_servers():
         for pid in pids:
             logger.info(f"Killing process {pid} using port 3000")
             kill_process(pid, force=True)
-        
+
         # Wait a bit for port to be released
         time.sleep(1)
-        
+
         # Check if port is still in use
         if is_port_in_use(3000):
             logger.warning("Port 3000 is still in use after killing processes")
             return False
-    
+
     return True
+
 
 def start_server():
     """Start the memory server."""
     # Find Python executable
     python_exe = find_venv_python()
-    
+
     # Get server script
     server_type, server_script = get_server_script_path()
-    
+
     # Command to start server
     if server_type == 'python':
         cmd = [python_exe, server_script, '--host', '127.0.0.1', '--port', '3000']
     else:  # node
         cmd = ['node', server_script]
-    
+
     # Start server process
     logger.info(f"Starting memory server with command: {' '.join(cmd)}")
     log_file = open('memory_server_fallback_output.log', 'w')
@@ -258,17 +266,17 @@ def start_server():
         stderr=log_file,
         start_new_session=True
     )
-    
+
     # Store PID in file for future reference
     pid_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'memory_server.pid')
     with open(pid_file, 'w') as f:
         f.write(str(process.pid))
-    
+
     # Wait for server to start
     logger.info("Waiting for server to start...")
     max_wait = 10  # seconds
     start_time = time.time()
-    
+
     while time.time() - start_time < max_wait:
         if is_port_in_use(3000):
             # Try to connect to server
@@ -280,11 +288,12 @@ def start_server():
                     return True
             except:
                 pass
-        
+
         time.sleep(0.5)
-    
+
     logger.error("Failed to start memory server")
     return False
+
 
 def main():
     """Main function."""
@@ -292,19 +301,20 @@ def main():
     if not install_dependencies():
         logger.error("Failed to install dependencies")
         return False
-    
+
     # Stop existing servers
     if not stop_existing_servers():
         logger.error("Failed to stop existing servers")
         return False
-    
+
     # Start server
     if not start_server():
         logger.error("Failed to start memory server")
         return False
-    
+
     logger.info("Memory server started successfully")
     return True
+
 
 if __name__ == "__main__":
     success = main()

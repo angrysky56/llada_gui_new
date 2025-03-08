@@ -9,14 +9,13 @@ the model from disk on each generation, significantly improving startup time
 for subsequent generations.
 """
 
-import os
 import gc
-import time
-import torch
 import hashlib
 import logging
 import threading
-from typing import Dict, Any, Optional, Tuple
+import time
+
+import torch
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -48,7 +47,7 @@ class ModelCache:
     It can cache models with different configurations (e.g., 4-bit, 8-bit) and
     automatically manages memory usage.
     """
-    
+
     def __init__(self, max_cache_size=2):
         """
         Initialize the model cache.
@@ -60,7 +59,7 @@ class ModelCache:
         self.cache = {}  # Config hash -> (model, tokenizer, timestamp)
         self.max_cache_size = max_cache_size
         logger.info(f"Model cache initialized with max size {max_cache_size}")
-    
+
     def get(self, config):
         """
         Get a model from the cache if available.
@@ -74,7 +73,7 @@ class ModelCache:
         with self.lock:
             # Create a hash of the relevant configuration
             config_hash = self._hash_config(config)
-            
+
             # Check if the model is in the cache
             if config_hash in self.cache:
                 model, tokenizer, timestamp = self.cache[config_hash]
@@ -82,10 +81,10 @@ class ModelCache:
                 self.cache[config_hash] = (model, tokenizer, time.time())
                 logger.info(f"Model found in cache for config {config_hash}")
                 return model, tokenizer
-            
+
             logger.info(f"Model not found in cache for config {config_hash}")
             return None, None
-    
+
     def put(self, config, model, tokenizer):
         """
         Add a model to the cache.
@@ -101,22 +100,22 @@ class ModelCache:
         with self.lock:
             # Create a hash of the relevant configuration
             config_hash = self._hash_config(config)
-            
+
             # If already in cache, just update it
             if config_hash in self.cache:
                 self.cache[config_hash] = (model, tokenizer, time.time())
                 logger.info(f"Updated existing model in cache for config {config_hash}")
                 return True
-            
+
             # Check if we need to remove an old entry
             if len(self.cache) >= self.max_cache_size:
                 self._evict_oldest()
-            
+
             # Add to cache
             self.cache[config_hash] = (model, tokenizer, time.time())
             logger.info(f"Added model to cache for config {config_hash}")
             return True
-    
+
     def clear(self):
         """
         Clear the entire cache.
@@ -127,15 +126,15 @@ class ModelCache:
         with self.lock:
             # Clear references
             self.cache.clear()
-            
+
             # Force garbage collection
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            
+
             logger.info("Model cache cleared")
             return True
-    
+
     def _evict_oldest(self):
         """
         Evict the oldest entry from the cache.
@@ -146,31 +145,32 @@ class ModelCache:
         with self.lock:
             if not self.cache:
                 return False
-            
+
             # Find the oldest entry
             oldest_hash = None
             oldest_time = float('inf')
-            
+
             for config_hash, (_, _, timestamp) in self.cache.items():
                 if timestamp < oldest_time:
                     oldest_time = timestamp
                     oldest_hash = config_hash
-            
+
             # Remove the oldest entry
             if oldest_hash:
                 del self.cache[oldest_hash]
-                
+
                 # Force garbage collection
                 gc.collect()
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
-                
+
                 logger.info(f"Evicted oldest model from cache: {oldest_hash}")
                 return True
-            
+
             return False
-    
-    def _hash_config(self, config):
+
+    @staticmethod
+    def _hash_config(config):
         """
         Create a hash string from the relevant configuration.
         
@@ -187,13 +187,13 @@ class ModelCache:
             'use_4bit': config.get('use_4bit', False),
             'extreme_mode': config.get('extreme_mode', False)
         }
-        
+
         # Create a string representation of the config
         config_str = str(sorted(cache_keys.items()))
-        
+
         # Create a hash
         return hashlib.md5(config_str.encode()).hexdigest()
-    
+
     def get_stats(self):
         """
         Get statistics about the cache.

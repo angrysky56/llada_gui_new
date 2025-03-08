@@ -8,16 +8,15 @@ This provides utilities for starting, stopping, and checking the status
 of the memory server in a reliable way.
 """
 
-import os
-import sys
-import time
-import signal
-import socket
-import subprocess
 import argparse
 import json
 import logging
-from pathlib import Path
+import os
+import signal
+import socket
+import subprocess
+import sys
+import time
 
 # Set up logging
 logging.basicConfig(
@@ -33,9 +32,10 @@ SERVER_CHECK_TIMEOUT = 0.5  # Seconds
 START_TIMEOUT = 10  # Seconds
 STOP_TIMEOUT = 5  # Seconds
 
+
 class MemoryServerManager:
     """Manages the Titan Memory Server."""
-    
+
     def __init__(self, host=None, port=None, server_dir=None):
         """Initialize the server manager.
         
@@ -46,18 +46,18 @@ class MemoryServerManager:
         """
         self.host = host or DEFAULT_HOST
         self.port = port or DEFAULT_PORT
-        
+
         # Determine server directory
         if server_dir is None:
             self.server_dir = os.path.dirname(os.path.abspath(__file__))
         else:
             self.server_dir = os.path.abspath(server_dir)
-        
+
         # Track server process
         self.process = None
         self.pid_file = os.path.join(self.server_dir, f"memory_server_pid_{self.port}.pid")
         self.log_file = os.path.join(self.server_dir, f"memory_server_{self.port}.log")
-    
+
     def is_port_in_use(self):
         """Check if the port is in use.
         
@@ -71,7 +71,7 @@ class MemoryServerManager:
                 return True
             except:
                 return False
-    
+
     def is_server_running(self):
         """Check if the server is running.
         
@@ -83,7 +83,7 @@ class MemoryServerManager:
         # Check if port is in use
         if not self.is_port_in_use():
             return False
-        
+
         # Try to connect to server - first check status endpoint
         try:
             import requests
@@ -108,7 +108,7 @@ class MemoryServerManager:
             except Exception as e:
                 logger.debug(f"Error checking API status endpoint: {e}")
                 return False
-    
+
     def get_stored_pid(self):
         """Get the stored PID from file.
         
@@ -122,7 +122,7 @@ class MemoryServerManager:
         except:
             pass
         return None
-    
+
     def store_pid(self, pid):
         """Store PID in file.
         
@@ -134,8 +134,9 @@ class MemoryServerManager:
                 f.write(str(pid))
         except Exception as e:
             logger.warning(f"Failed to store PID: {e}")
-    
-    def is_process_running(self, pid):
+
+    @staticmethod
+    def is_process_running(pid):
         """Check if a process with given PID is running.
         
         Args:
@@ -146,7 +147,7 @@ class MemoryServerManager:
         """
         if pid is None:
             return False
-            
+
         try:
             # Send signal 0 to check process existence
             os.kill(pid, 0)
@@ -155,7 +156,7 @@ class MemoryServerManager:
             return False
         except:
             return False
-    
+
     def kill_process(self, pid, force=False):
         """Attempt to kill a process with given PID.
         
@@ -168,25 +169,25 @@ class MemoryServerManager:
         """
         if pid is None:
             return False
-            
+
         try:
             if not force:
                 # Try to terminate gracefully first
                 os.kill(pid, signal.SIGTERM)
-                
+
                 # Wait for process to terminate
                 for _ in range(STOP_TIMEOUT):
                     if not self.is_process_running(pid):
                         return True
                     time.sleep(1)
-            
+
             # Force kill if still running or force=True
             os.kill(pid, signal.SIGKILL)
             time.sleep(0.5)  # Small wait to ensure kill is processed
             return not self.is_process_running(pid)
         except:
             return False
-    
+
     def find_memory_server_pid(self):
         """Find the PID of the memory server process using lsof.
         
@@ -204,7 +205,7 @@ class MemoryServerManager:
         except:
             pass
         return None
-    
+
     def find_python_path(self):
         """Find the Python executable path.
         
@@ -213,7 +214,7 @@ class MemoryServerManager:
         """
         # Use current Python by default
         python_path = sys.executable
-        
+
         # Try to find venv Python
         venv_dirs = [
             os.path.join(self.server_dir, '..', '..', '..', 'venv'),
@@ -221,16 +222,16 @@ class MemoryServerManager:
             os.path.join(self.server_dir, '..', 'venv'),
             os.path.join(self.server_dir, 'venv')
         ]
-        
+
         for venv_dir in venv_dirs:
             venv_dir = os.path.abspath(venv_dir)
             venv_python = os.path.join(venv_dir, 'bin', 'python')
             if os.path.exists(venv_python):
                 python_path = venv_python
                 break
-        
+
         return python_path
-    
+
     def find_server_script(self):
         """Find the server script path.
         
@@ -241,15 +242,15 @@ class MemoryServerManager:
         node_server = os.path.join(self.server_dir, 'server.js')
         if os.path.exists(node_server):
             return node_server
-            
+
         # Try Python server as fallback
         python_server = os.path.join(self.server_dir, 'server.py')
         if os.path.exists(python_server):
             return python_server
-        
+
         # No server found
         return None
-    
+
     def start(self, background=True, wait=True):
         """Start the memory server.
         
@@ -264,11 +265,11 @@ class MemoryServerManager:
         if self.is_server_running():
             logger.info("Server is already running")
             return True
-        
+
         # Check if port is in use by something else
         if self.is_port_in_use():
             logger.warning(f"Port {self.port} is in use but server is not responding properly")
-            
+
             # Try to kill any process using the port
             pid = self.find_memory_server_pid()
             if pid:
@@ -280,20 +281,20 @@ class MemoryServerManager:
                 else:
                     logger.error(f"Failed to kill process {pid}")
                     return False
-            
+
             # Check if port is still in use
             if self.is_port_in_use():
                 logger.error(f"Port {self.port} is still in use after cleanup attempt")
                 return False
-        
+
         # Check for required dependencies
         self._check_dependencies()
-        
+
         # Try to find appropriate server script - try both Node.js and Python options
         server_scripts = []
         js_server = os.path.join(self.server_dir, 'server.js')
         py_server = os.path.join(self.server_dir, 'server.py')
-        
+
         # Check Node.js server first if available
         if os.path.exists(js_server):
             try:
@@ -302,40 +303,40 @@ class MemoryServerManager:
                 server_scripts.append(('node', js_server))
             except (subprocess.SubprocessError, FileNotFoundError):
                 logger.warning("Node.js not available, will skip server.js")
-        
+
         # Check Python server as fallback or alternative
         if os.path.exists(py_server):
             python_path = self.find_python_path()
             server_scripts.append((python_path, py_server))
-        
+
         if not server_scripts:
             logger.error("No valid server scripts found")
             return False
-        
+
         # Try to start the servers in order, with appropriate error handling
         success = False
         for interpreter, script in server_scripts:
             cmd = [interpreter, script]
-            
+
             # Add host and port if supported
             try:
-                help_output = subprocess.run([cmd[0], script, '--help'], 
-                                         capture_output=True, text=True).stdout
+                help_output = subprocess.run([cmd[0], script, '--help'],
+                                             capture_output=True, text=True).stdout
                 if '--host' in help_output or '--port' in help_output:
                     cmd.extend(['--host', self.host, '--port', str(self.port)])
             except Exception as e:
                 logger.warning(f"Error checking command options: {e}")
-            
+
             # Create log directory if it doesn't exist
             log_dir = os.path.dirname(self.log_file)
             os.makedirs(log_dir, exist_ok=True)
-            
+
             # Start server process
             try:
                 if background:
                     # Open log file
                     log_file = open(self.log_file, 'w')
-                    
+
                     # Start process
                     logger.info(f"Starting server: {' '.join(cmd)}")
                     self.process = subprocess.Popen(
@@ -352,10 +353,10 @@ class MemoryServerManager:
                         cmd,
                         cwd=self.server_dir
                     )
-                
+
                 # Store PID
                 self.store_pid(self.process.pid)
-                
+
                 # Wait for server to start
                 if wait:
                     logger.info("Waiting for server to start...")
@@ -366,9 +367,9 @@ class MemoryServerManager:
                             success = True
                             return True
                         time.sleep(0.5)
-                    
+
                     logger.warning(f"Server {interpreter} {script} failed to start within timeout")
-                    
+
                     # Check if process is still running but not responding
                     if self.process and self.process.poll() is None:
                         # Process is running but not responding correctly
@@ -379,7 +380,7 @@ class MemoryServerManager:
                                 logger.warning(f"Server log tail: {log_tail}")
                         except Exception as e:
                             logger.warning(f"Could not read log file: {e}")
-                            
+
                         # Try to terminate the process and try next option
                         self.process.terminate()
                         try:
@@ -393,27 +394,27 @@ class MemoryServerManager:
             except Exception as e:
                 logger.error(f"Error starting server with {interpreter} {script}: {e}")
                 # Continue to next option
-        
+
         if not success:
             logger.error("All server start attempts failed")
             return False
-            
+
         return True
-    
+
     def _check_dependencies(self):
         """Check for required dependencies and try to install them if missing."""
         try:
             # Check for basic Node.js and Python dependencies
             node_dependencies_ok = False
             python_dependencies_ok = False
-            
+
             # Check Node.js deps first
             try:
                 # Check if Node.js is available
-                node_version = subprocess.run(['node', '--version'], 
-                                             capture_output=True, text=True, check=True).stdout.strip()
+                node_version = subprocess.run(['node', '--version'],
+                                              capture_output=True, text=True, check=True).stdout.strip()
                 logger.info(f"Node.js version: {node_version}")
-                
+
                 # Check npm and package.json
                 if os.path.exists(os.path.join(self.server_dir, 'package.json')):
                     # Check if node_modules exists and has required modules
@@ -432,13 +433,13 @@ class MemoryServerManager:
                             logger.warning(f"Error installing Node.js dependencies: {e}")
             except (subprocess.SubprocessError, FileNotFoundError) as e:
                 logger.warning(f"Node.js not available: {e}")
-            
+
             # Check Python dependencies
             try:
                 # Check for fix_memory_dependencies.py in project root
                 project_root = os.path.abspath(os.path.join(self.server_dir, '..', '..', '..'))
                 fix_script = os.path.join(project_root, 'fix_memory_dependencies.py')
-                
+
                 if os.path.isfile(fix_script):
                     logger.info("Running dependency fix script...")
                     try:
@@ -462,17 +463,17 @@ class MemoryServerManager:
                             logger.warning(f"Failed to install Python requirements: {e}")
             except Exception as e:
                 logger.warning(f"Error checking Python dependencies: {e}")
-                
+
             # Log dependency status
             logger.info(f"Dependency check summary - Node.js: {node_dependencies_ok}, Python: {python_dependencies_ok}")
-            
+
             # If no dependencies could be installed, still continue and try to use what we have
             if not (node_dependencies_ok or python_dependencies_ok):
                 logger.warning("Could not verify any dependencies, will attempt to continue anyway")
-                
+
         except Exception as e:
             logger.warning(f"Error checking dependencies: {e}")
-    
+
     def stop(self):
         """Stop the memory server.
         
@@ -482,31 +483,31 @@ class MemoryServerManager:
         # Check if server is running
         if not self.is_port_in_use():
             logger.info("Server is not running")
-            
+
             # Clean up PID file
             if os.path.exists(self.pid_file):
                 try:
                     os.remove(self.pid_file)
                 except:
                     pass
-            
+
             return True
-        
+
         # Try to terminate process
         result = False
-        
+
         # First try stored PID
         stored_pid = self.get_stored_pid()
         if stored_pid and self.is_process_running(stored_pid):
             logger.info(f"Terminating process with stored PID: {stored_pid}")
             result = self.kill_process(stored_pid)
-            
+
             # Clean up PID file
             try:
                 os.remove(self.pid_file)
             except:
                 pass
-        
+
         # If that failed, try process attribute
         if not result and self.process and self.process.poll() is None:
             logger.info(f"Terminating process with PID: {self.process.pid}")
@@ -521,24 +522,24 @@ class MemoryServerManager:
                     result = True
             except:
                 pass
-        
+
         # If all else fails, try to find and kill the process via port
         if not result or self.is_port_in_use():
             logger.info(f"Attempting to find process using port {self.port}...")
-            
+
             pid = self.find_memory_server_pid()
             if pid:
                 logger.info(f"Found process using port {self.port}: {pid}")
                 result = self.kill_process(pid, force=True)
-        
+
         # Check if server is still running
         if self.is_port_in_use():
             logger.error("Failed to stop server")
             return False
-        
+
         logger.info("Server stopped successfully")
         return True
-    
+
     def restart(self, background=True, wait=True):
         """Restart the memory server.
         
@@ -551,7 +552,7 @@ class MemoryServerManager:
         """
         self.stop()
         return self.start(background, wait)
-    
+
     def status(self):
         """Get server status.
         
@@ -560,7 +561,7 @@ class MemoryServerManager:
         """
         running = self.is_server_running()
         port_in_use = self.is_port_in_use()
-        
+
         status = {
             "running": running,
             "port_in_use": port_in_use,
@@ -568,7 +569,7 @@ class MemoryServerManager:
             "port": self.port,
             "pid_file": self.pid_file
         }
-        
+
         if running:
             # Get server info
             try:
@@ -581,48 +582,49 @@ class MemoryServerManager:
                 status["server_info"] = server_info
             except:
                 status["server_info"] = "Error getting server info"
-        
+
         # Add stored PID
         stored_pid = self.get_stored_pid()
         if stored_pid:
             status["stored_pid"] = stored_pid
             status["process_running"] = self.is_process_running(stored_pid)
-        
+
         # Add port checker
         if port_in_use and not running:
             pid = self.find_memory_server_pid()
             if pid:
                 status["port_used_by"] = pid
-        
+
         return status
+
 
 def main():
     """Main function for command-line usage."""
     parser = argparse.ArgumentParser(description="Memory Server Manager")
-    
+
     # Commands
     parser.add_argument('command', choices=['start', 'stop', 'restart', 'status', 'clean'],
-                       help='Command to execute')
-    
+                        help='Command to execute')
+
     # Options
     parser.add_argument('--host', default=DEFAULT_HOST,
-                       help=f'Host interface (default: {DEFAULT_HOST})')
+                        help=f'Host interface (default: {DEFAULT_HOST})')
     parser.add_argument('--port', type=int, default=DEFAULT_PORT,
-                       help=f'Port number (default: {DEFAULT_PORT})')
+                        help=f'Port number (default: {DEFAULT_PORT})')
     parser.add_argument('--server-dir', type=str, default=None,
-                       help='Server directory (default: directory of this script)')
+                        help='Server directory (default: directory of this script)')
     parser.add_argument('--background', action='store_true',
-                       help='Run server in background')
+                        help='Run server in background')
     parser.add_argument('--no-wait', action='store_true',
-                       help="Don't wait for server to start")
+                        help="Don't wait for server to start")
     parser.add_argument('--force', action='store_true',
-                       help='Force operation (e.g., force kill for stop)')
-    
+                        help='Force operation (e.g., force kill for stop)')
+
     args = parser.parse_args()
-    
+
     # Create server manager
     manager = MemoryServerManager(args.host, args.port, args.server_dir)
-    
+
     # Execute command
     if args.command == 'start':
         success = manager.start(background=args.background, wait=not args.no_wait)
@@ -648,6 +650,7 @@ def main():
             os.remove(manager.pid_file)
         print("Cleanup completed")
         sys.exit(0)
+
 
 if __name__ == '__main__':
     main()

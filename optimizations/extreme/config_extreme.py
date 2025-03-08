@@ -20,24 +20,24 @@ ENABLE_GRADIENT_CHECKPOINTING = True  # Use gradient checkpointing even for infe
 ADVANCED_SETTINGS = {
     # PyTorch memory settings
     "PYTORCH_CUDA_ALLOC_CONF": "max_split_size_mb:64",
-    
+
     # Model loading
     "PROGRESSIVE_LOADING": True,
     "PROGRESSIVE_LOADING_BLOCK_SIZE": 2,
     "QUANTIZATION_BITS": 4,  # Using 4-bit quantization for maximum memory savings
-    
+
     # Attention optimization
     "ATTENTION_SLICE_SIZE": 1,
     "ATTENTION_HEAD_PRUNE_PERCENT": 25,  # Prune 25% of attention heads
-    
+
     # Layer optimization
     "FFN_PRUNE_PERCENT": 20,  # Prune 20% of FFN neurons
-    
+
     # Generation parameters
     "DEFAULT_GEN_LENGTH": 32,
     "DEFAULT_STEPS": 32,
     "DEFAULT_BLOCK_LENGTH": 16,
-    
+
     # Memory monitoring
     "MEMORY_CHECK_INTERVAL": 0.5,  # Check memory more frequently
     "MEMORY_WARNING_THRESHOLD": 85,  # Lower warning threshold
@@ -47,18 +47,21 @@ ADVANCED_SETTINGS = {
 
 # Apply these settings at import time
 import os
+
 for key, value in ADVANCED_SETTINGS.items():
     if key.startswith("PYTORCH_") or key.startswith("CUDA_"):
         os.environ[key] = str(value)
 
 # Apply PyTorch memory optimizations
 import torch
+
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 torch.set_float32_matmul_precision('medium')  # Less precise but faster
 
 # Configure logging
 import logging
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'

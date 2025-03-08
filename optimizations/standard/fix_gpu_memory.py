@@ -14,10 +14,9 @@ Usage:
     python fix_gpu_memory.py --launch
 """
 
+import logging
 import os
 import sys
-import importlib
-import logging
 
 # Configure logging
 logging.basicConfig(
@@ -26,15 +25,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 def main():
     """Main function to apply fixes and optionally launch the application."""
     logger.info("Applying GPU memory offloading fixes...")
-    
+
     # Import the memory patch module
     try:
         # First make sure memory_integration_auto is installed
         import memory_integration_auto
-        
+
         # Write the memory patch module if it doesn't exist
         patch_path = os.path.join(os.path.dirname(__file__), "memory_patch.py")
         if not os.path.exists(patch_path):
@@ -42,33 +42,34 @@ def main():
             with open(patch_path, "w") as f:
                 f.write(patch_code)
             logger.info(f"Created memory patch at: {patch_path}")
-        
+
         # Import the patch module
         import memory_patch
-        
+
         # Apply the fixes
         success = memory_patch.apply_gpu_offloading_fixes()
-        
+
         if success:
             logger.info("GPU memory offloading fixes applied successfully!")
         else:
             logger.error("Failed to apply GPU memory offloading fixes")
             return 1
-        
+
         # Optionally launch the application
         if len(sys.argv) > 1 and sys.argv[1] == "--launch":
             logger.info("Launching LLaDA with memory integration and GPU fixes...")
             from memory_integration_auto import main as launch_app
             launch_app()
-        
+
         return 0
-        
+
     except ImportError as e:
         logger.error(f"Failed to import required modules: {str(e)}")
         return 1
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
         return 1
+
 
 # Include the patch code as a string to avoid having to create a separate file
 memory_patch_code = """#!/usr/bin/env python
@@ -341,6 +342,7 @@ if __name__ == "__main__":
         main()
 """
 
+
 # Write the memory patch code to a module
 def write_memory_patch():
     """Write the memory patch code to a module."""
@@ -349,6 +351,7 @@ def write_memory_patch():
         f.write(memory_patch_code)
     return patch_path
 
+
 # Define patch code for external use
 patch_code = memory_patch_code
 
@@ -356,6 +359,6 @@ if __name__ == "__main__":
     # Write the memory patch module
     patch_path = write_memory_patch()
     logger.info(f"Created memory patch at: {patch_path}")
-    
+
     # Run the main function
     sys.exit(main())

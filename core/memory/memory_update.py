@@ -9,10 +9,10 @@ enabling automatic training and data flow.
 """
 
 import logging
-from PyQt6.QtWidgets import QMessageBox
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
 
 def update_memory_after_generation(gui_instance, prompt, generated_text):
     """Update memory system after generation.
@@ -30,19 +30,19 @@ def update_memory_after_generation(gui_instance, prompt, generated_text):
     if not hasattr(gui_instance, 'memory_viz'):
         logger.warning("GUI has no memory_viz attribute, cannot update memory")
         return
-    
+
     memory_viz = gui_instance.memory_viz
-    
+
     # Store data
     if hasattr(memory_viz, 'set_generation_data'):
         print("Storing generation data in memory system")
         memory_viz.set_generation_data(prompt, generated_text)
-    
+
     # Enable training button
     if hasattr(memory_viz, 'train_btn'):
         memory_viz.train_btn.setEnabled(True)
         memory_viz.training_status.setText("Training data available")
-    
+
     # Check if automatic training is enabled (only using Titan memory)
     if hasattr(gui_instance, 'worker') and hasattr(gui_instance.worker, 'memory_guidance'):
         memory_guidance = gui_instance.worker.memory_guidance

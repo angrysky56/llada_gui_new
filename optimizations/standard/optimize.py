@@ -8,12 +8,13 @@ This script provides options to optimize the LLaDA model for better performance
 and reduced memory usage without requiring ONNX conversion.
 """
 
+import argparse
+import logging
 import os
 import sys
-import torch
-import logging
-import argparse
 from pathlib import Path
+
+import torch
 
 # Configure logging
 logging.basicConfig(
@@ -22,6 +23,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("llada_optimize")
 
+
 def optimize_gpu_memory():
     """
     Apply GPU memory optimizations for PyTorch.
@@ -29,29 +31,30 @@ def optimize_gpu_memory():
     if not torch.cuda.is_available():
         logger.warning("CUDA not available, skipping GPU memory optimizations")
         return False
-    
+
     logger.info("Applying GPU memory optimizations")
-    
+
     # Enable memory efficient attention
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
-    
+
     # Clear existing GPU cache
     torch.cuda.empty_cache()
-    
+
     # Set PyTorch to release memory more aggressively
     try:
         # Enable gradient checkpointing for GPU memory savings
         torch._C._jit_set_profiling_executor(False)
         torch._C._jit_set_profiling_mode(False)
-        
+
         # Set to release memory when no longer needed
         os.environ["PYTORCH_NO_CUDA_MEMORY_CACHING"] = "1"
-        
+
         logger.info("GPU memory optimizations applied successfully")
         return True
     except Exception as e:
         logger.error(f"Error applying GPU memory optimizations: {e}")
         return False
+
 
 def patch_config_file():
     """
@@ -61,16 +64,16 @@ def patch_config_file():
         # Look for config.py in the parent directory
         parent_dir = Path(__file__).parent.parent
         config_path = parent_dir / "config.py"
-        
+
         if not config_path.exists():
             logger.error(f"Config file not found at {config_path}")
             return False
-        
+
         logger.info(f"Patching config file at {config_path}")
-        
+
         # Read current content
         content = config_path.read_text()
-        
+
         # Define optimized constants
         optimized_constants = """
 # Memory optimization constants
@@ -79,12 +82,12 @@ CACHE_PRECISION = "bfloat16"  # Use bfloat16 for better performance with minimal
 ENABLE_ATTENTION_SLICING = True  # Slice attention for lower memory usage
 ENABLE_FLASH_ATTENTION = True  # Use flash attention if available
 """
-        
+
         # Check if our constants are already in the file
         if "OPTIMIZED_GPU_MEMORY" in content:
             logger.info("Config file already patched, skipping")
             return True
-        
+
         # Add our optimizations after the memory-related constants
         if "MEMORY_CHECK_INTERVAL" in content:
             new_content = content.replace(
@@ -94,15 +97,16 @@ ENABLE_FLASH_ATTENTION = True  # Use flash attention if available
         else:
             # If we can't find the right section, just append to the end
             new_content = content + "\n" + optimized_constants
-        
+
         # Write back the modified content
         config_path.write_text(new_content)
-        
+
         logger.info("Config file patched successfully")
         return True
     except Exception as e:
         logger.error(f"Error patching config file: {e}")
         return False
+
 
 def patch_worker_file():
     """
@@ -112,23 +116,23 @@ def patch_worker_file():
         # Look for llada_worker.py in the parent directory
         parent_dir = Path(__file__).parent.parent
         worker_path = parent_dir / "llada_worker.py"
-        
+
         if not worker_path.exists():
             logger.error(f"Worker file not found at {worker_path}")
             return False
-        
+
         logger.info(f"Patching worker file at {worker_path}")
-        
+
         # Create a backup first
         backup_path = worker_path.with_suffix(worker_path.suffix + ".backup")
         if not backup_path.exists():  # Don't overwrite existing backups
             import shutil
             shutil.copy2(worker_path, backup_path)
             logger.info(f"Created backup at {backup_path}")
-        
+
         # Read current content
         content = worker_path.read_text()
-        
+
         # Define imports to add
         import_patch = """import os
 import sys
@@ -150,7 +154,7 @@ except ImportError:
     ENABLE_ATTENTION_SLICING = False
     ENABLE_FLASH_ATTENTION = False
 """
-        
+
         # Model loading patch to add memory optimizations
         model_load_patch = """            # Apply memory optimizations if enabled
             attention_slicing = False
@@ -179,7 +183,7 @@ except ImportError:
                     except:
                         pass
 """
-        
+
         # Post-load patch to apply attention slicing
         post_load_patch = """            # Apply attention slicing if enabled
             if device == 'cuda' and attention_slicing:
@@ -193,12 +197,12 @@ except ImportError:
                 except Exception as attn_error:
                     self.progress.emit(22, f"Warning: Could not apply attention slicing: {str(attn_error)}", {})
 """
-        
+
         # Check if our patches are already in the file
         if "OPTIMIZED_GPU_MEMORY" in content:
             logger.info("Worker file already patched, skipping")
             return True
-        
+
         # Apply patches
         # 1. Replace imports
         if "import os" in content:
@@ -208,7 +212,7 @@ except ImportError:
             )
         else:
             new_content = import_patch + content
-        
+
         # 2. Add model loading optimizations - look for torch_dtype setting
         torch_dtype_pattern = "model_load_params[\"torch_dtype\"] = torch.bfloat16 if device == 'cuda' else torch.float32"
         if torch_dtype_pattern in new_content:
@@ -217,8 +221,9 @@ except ImportError:
                 torch_dtype_pattern + "\n" + model_load_patch
             )
         else:
-            logger.warning(f"Could not find pattern '{torch_dtype_pattern}' in worker file, skipping model loading patch")
-        
+            logger.warning(
+                f"Could not find pattern '{torch_dtype_pattern}' in worker file, skipping model loading patch")
+
         # 3. Add post-load optimizations - look for model.eval()
         model_eval_pattern = "model = model.eval()"
         if model_eval_pattern in new_content:
@@ -228,38 +233,40 @@ except ImportError:
             )
         else:
             logger.warning(f"Could not find pattern '{model_eval_pattern}' in worker file, skipping post-load patch")
-        
+
         # Write back the modified content
         worker_path.write_text(new_content)
-        
+
         logger.info("Worker file patched successfully")
         return True
     except Exception as e:
         logger.error(f"Error patching worker file: {e}")
         return False
 
+
 def apply_all_optimizations():
     """
     Apply all available optimizations.
     """
     success = True
-    
+
     # Step 1: Apply GPU memory optimizations
     if not optimize_gpu_memory():
         logger.warning("Failed to apply GPU memory optimizations")
         success = False
-    
+
     # Step 2: Patch config file
     if not patch_config_file():
         logger.warning("Failed to patch config file")
         success = False
-    
+
     # Step 3: Patch worker file
     if not patch_worker_file():
         logger.warning("Failed to patch worker file")
         success = False
-    
+
     return success
+
 
 def main():
     """Run the optimization process."""
@@ -270,9 +277,9 @@ def main():
                         help="Skip config file patching")
     parser.add_argument("--no-worker-patch", action="store_true",
                         help="Skip worker file patching")
-    
+
     args = parser.parse_args()
-    
+
     if not args.no_gpu_opt and not args.no_config_patch and not args.no_worker_patch:
         # Apply all optimizations
         if apply_all_optimizations():
@@ -285,22 +292,22 @@ def main():
     else:
         # Apply selected optimizations
         success = True
-        
+
         if not args.no_gpu_opt:
             if not optimize_gpu_memory():
                 logger.warning("Failed to apply GPU memory optimizations")
                 success = False
-        
+
         if not args.no_config_patch:
             if not patch_config_file():
                 logger.warning("Failed to patch config file")
                 success = False
-        
+
         if not args.no_worker_patch:
             if not patch_worker_file():
                 logger.warning("Failed to patch worker file")
                 success = False
-        
+
         if success:
             logger.info("Selected optimizations applied successfully!")
             logger.info("Restart the LLaDA GUI to apply the changes.")
@@ -308,6 +315,7 @@ def main():
         else:
             logger.error("Some optimizations failed to apply.")
             return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

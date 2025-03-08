@@ -6,14 +6,14 @@ Runner script for the LLaDA GUI application with memory integration.
 This script ensures the memory system is properly initialized and connected.
 """
 
-import os
-import sys
-import logging
-import subprocess
-import time
-import signal
 import atexit
 import json
+import logging
+import os
+import signal
+import subprocess
+import sys
+import time
 import traceback
 
 # Configure logging
@@ -45,6 +45,7 @@ sys.path.insert(0, os.path.join(script_dir, "core"))
 sys.path.insert(0, os.path.join(script_dir, "gui"))
 sys.path.insert(0, os.path.join(script_dir, "optimizations"))
 
+
 # Check if model exists and download if needed
 def check_model():
     """Check if the model exists and download if needed."""
@@ -53,7 +54,7 @@ def check_model():
         try:
             # Create model directory
             os.makedirs(model_dir, exist_ok=True)
-            
+
             # Check if original model exists to copy
             original_model = os.path.join(os.path.dirname(script_dir), "llada_gui/GSAI-ML_LLaDA-8B-Instruct")
             if os.path.exists(original_model):
@@ -61,23 +62,23 @@ def check_model():
                 import shutil
                 shutil.copytree(original_model, model_dir, dirs_exist_ok=True)
                 return True
-            
+
             # If model doesn't exist, download from Hugging Face
             logger.info("Model not found. Downloading from Hugging Face...")
-            
+
             # Offer to download model
             try:
                 from PyQt6.QtWidgets import QApplication, QMessageBox
                 app = QApplication([])
                 response = QMessageBox.question(
-                    None, 
-                    "Download Model", 
-                    "The LLaDA model is not found. Would you like to download it from Hugging Face? \n\n" + 
+                    None,
+                    "Download Model",
+                    "The LLaDA model is not found. Would you like to download it from Hugging Face? \n\n" +
                     "This will download the GSAI-ML/LLaDA-8B-Instruct model (about 16GB).\n\n" +
-                    "Note: You need a Hugging Face account and must accept the model license.", 
+                    "Note: You need a Hugging Face account and must accept the model license.",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
-                
+
                 if response == QMessageBox.StandardButton.Yes:
                     # Use huggingface_hub to download the model
                     try:
@@ -89,14 +90,14 @@ def check_model():
                             "The model will now be downloaded. This may take some time depending on your internet connection.\n\n" +
                             "The download will continue in the background. The application will start once the download is complete."
                         )
-                        
+
                         # Download the model
                         snapshot_download(
                             repo_id="GSAI-ML/LLaDA-8B-Instruct",
                             local_dir=model_dir,
                             token=None  # User will be prompted for login if needed
                         )
-                        
+
                         logger.info("Model downloaded successfully")
                         return True
                     except Exception as e:
@@ -118,6 +119,7 @@ def check_model():
             return False
     return True
 
+
 # Ensure data directory exists for vector database
 def setup_vector_db():
     """Set up vector database for persistent memory."""
@@ -125,7 +127,7 @@ def setup_vector_db():
         # Create data directory
         data_dir = os.path.join(script_dir, "data", "memory", "vector_db")
         os.makedirs(data_dir, exist_ok=True)
-        
+
         # Create a config file for vector database
         config_file = os.path.join(script_dir, "core", "memory", "vector_db_config.json")
         if not os.path.exists(config_file):
@@ -137,11 +139,12 @@ def setup_vector_db():
             }
             with open(config_file, 'w') as f:
                 json.dump(config, f, indent=2)
-        
+
         return True
     except Exception as e:
         logger.error(f"Error setting up vector database: {e}")
         return False
+
 
 # Function to start the memory server
 def start_memory_server():
@@ -152,7 +155,7 @@ def start_memory_server():
         if not os.path.exists(memory_server_dir):
             logger.error(f"Memory server directory not found: {memory_server_dir}")
             return None
-            
+
         # Check if server is already running - try both status endpoints
         server_running = False
         try:
@@ -170,9 +173,9 @@ def start_memory_server():
                 return None
         except Exception as e:
             logger.debug(f"Server connectivity check failed: {e}")
-        
+
         # If we get here, no server is running or responding - try to start one
-        
+
         # First check if we actually need to install dependencies
         try:
             # Install or update dependencies via the fix script
@@ -182,7 +185,7 @@ def start_memory_server():
                 subprocess.run([sys.executable, fix_script], check=False)
         except Exception as e:
             logger.warning(f"Error running dependency fix script: {e}")
-        
+
         # Try to start Node.js server first
         try:
             logger.info("Starting Node.js memory server...")
@@ -195,19 +198,19 @@ def start_memory_server():
                         # Create log file to capture npm output
                         npm_log = open(os.path.join(script_dir, "npm_install.log"), "w")
                         subprocess.run(
-                            ["npm", "install"], 
-                            cwd=memory_server_dir, 
-                            stdout=npm_log, 
+                            ["npm", "install"],
+                            cwd=memory_server_dir,
+                            stdout=npm_log,
                             stderr=npm_log,
                             check=False
                         )
                         npm_log.close()
                 except Exception as e:
                     logger.warning(f"Error installing Node.js dependencies: {e}")
-                
+
                 # Create log file for server output
                 server_log = open(os.path.join(script_dir, "memory_server.log"), "w")
-                
+
                 # Start Node.js server
                 server_process = subprocess.Popen(
                     ["node", "server.js"],
@@ -215,10 +218,10 @@ def start_memory_server():
                     stdout=server_log,
                     stderr=server_log
                 )
-                
+
                 # Wait a bit for server to start
                 time.sleep(2)
-                
+
                 # Check if server started successfully
                 if server_process.poll() is None:
                     # Also check if it's responding to requests
@@ -232,7 +235,7 @@ def start_memory_server():
                                     return server_process
                             except:
                                 pass
-                        
+
                         # If we get here, server is running but not responding
                         logger.warning("Node.js server process is running but not responding to requests")
                         # Try to kill it so we can try Python server
@@ -253,12 +256,12 @@ def start_memory_server():
                 logger.warning(f"Node.js server not found: {node_server}")
         except Exception as e:
             logger.error(f"Error starting Node.js server: {e}")
-        
+
         # Fall back to Python server
         try:
             logger.info("Starting Python memory server...")
             python_server = os.path.join(memory_server_dir, "server.py")
-            
+
             # Check if the Python server exists, if not create a minimal version
             if not os.path.exists(python_server) or os.path.getsize(python_server) < 100:
                 logger.warning("Python server not found or too small, creating a minimal version")
@@ -372,19 +375,19 @@ if __name__ == '__main__':
 """)
                 # Make it executable
                 os.chmod(python_server, 0o755)
-            
+
             # Ensure requirements are installed
             try:
                 subprocess.run(
-                    [sys.executable, "-m", "pip", "install", "flask", "numpy", "requests"], 
+                    [sys.executable, "-m", "pip", "install", "flask", "numpy", "requests"],
                     check=False
                 )
             except Exception as e:
                 logger.warning(f"Error installing Python server dependencies: {e}")
-            
+
             # Create log file for server output
             server_log = open(os.path.join(script_dir, "memory_server_python.log"), "w")
-            
+
             # Start Python server
             server_process = subprocess.Popen(
                 [sys.executable, "server.py", "--host", "127.0.0.1", "--port", "3000"],
@@ -392,10 +395,10 @@ if __name__ == '__main__':
                 stdout=server_log,
                 stderr=server_log
             )
-            
+
             # Wait a bit for server to start
             time.sleep(2)
-            
+
             # Check if server started successfully
             if server_process.poll() is None:
                 # Also check if it's responding to requests
@@ -409,7 +412,7 @@ if __name__ == '__main__':
                                 return server_process
                         except:
                             pass
-                    
+
                     # If we get here, server is running but not responding
                     logger.warning("Python server process is running but not responding to requests")
                 except Exception as e:
@@ -425,21 +428,22 @@ if __name__ == '__main__':
                     logger.warning(f"Could not read server log: {e}")
         except Exception as e:
             logger.error(f"Error starting Python server: {e}")
-        
+
         # All attempts failed
         logger.error("Failed to start memory server")
         return None
-            
+
     except Exception as e:
         logger.error(f"Error in start_memory_server: {e}")
         return None
+
 
 # Function to stop the memory server
 def stop_memory_server(server_process):
     """Stop the memory server."""
     if server_process is None:
         return
-        
+
     try:
         logger.info("Stopping memory server...")
         server_process.terminate()
@@ -452,17 +456,20 @@ def stop_memory_server(server_process):
         except:
             pass
 
+
 # Check model first
 if not check_model():
     # Display error message
     try:
         from PyQt6.QtWidgets import QApplication, QMessageBox
+
         app = QApplication([])
         error_msg = "LLaDA model not found. Please download the model before running the application."
         QMessageBox.critical(None, "Model Error", error_msg)
     except:
         print("LLaDA model not found. Please download the model before running the application.")
     sys.exit(1)
+
 
 # Ensure data directory exists for vector database
 def setup_vector_db():
@@ -471,7 +478,7 @@ def setup_vector_db():
         # Create data directory
         data_dir = os.path.join(script_dir, "data", "memory", "vector_db")
         os.makedirs(data_dir, exist_ok=True)
-        
+
         # Create a config file for vector database
         config_file = os.path.join(script_dir, "core", "memory", "vector_db_config.json")
         if not os.path.exists(config_file):
@@ -483,11 +490,12 @@ def setup_vector_db():
             }
             with open(config_file, 'w') as f:
                 json.dump(config, f, indent=2)
-        
+
         return True
     except Exception as e:
         logger.error(f"Error setting up vector database: {e}")
         return False
+
 
 # Setup vector DB
 setup_vector_db()
@@ -498,12 +506,14 @@ server_process = start_memory_server()
 # Register cleanup function to stop server on exit
 if server_process is not None:
     atexit.register(lambda: stop_memory_server(server_process))
-    
+
+
     # Also handle SIGINT and SIGTERM
     def signal_handler(sig, frame):
         stop_memory_server(server_process)
         sys.exit(0)
-        
+
+
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
@@ -511,28 +521,29 @@ if server_process is not None:
 try:
     # Run with memory flag
     os.environ["LLADA_MEMORY_ENABLED"] = "1"
-    
+
+
     # Create custom run function to position window properly
     def custom_run():
         # Import UI components
         from PyQt6.QtWidgets import QApplication, QMainWindow
         from PyQt6.QtCore import QRect
-        
+
         # Import from run.py
         from gui.llada_gui import LLaDAGUI
         from core.memory.memory_integration import enhance_llada_gui
-        
+
         # Initialize app
         app = QApplication(sys.argv)
-        
+
         # Create enhanced GUI with memory and let it position itself naturally
         EnhancedLLaDAGUI = enhance_llada_gui(LLaDAGUI)
         window = EnhancedLLaDAGUI()
-        
+
         # Ensure memory is enabled
         if hasattr(window, 'memory_integration'):
             window.memory_integration.setChecked(True)
-        
+
         # Register shutdown handler to properly terminate server
         def shutdown_handler():
             logger.info("Application shutting down, stopping memory server...")
@@ -543,13 +554,13 @@ try:
                     # First try SIGTERM
                     os.kill(server_process.pid, signal.SIGTERM)
                     time.sleep(1)  # Give it a moment to shut down
-                    
+
                     # If still running, use SIGKILL
                     if server_process.poll() is None:
                         os.kill(server_process.pid, signal.SIGKILL)
                 except Exception as e:
                     logger.error(f"Error killing server process: {e}")
-                    
+
             # Also try to use the server manager if available
             try:
                 from core.memory.memory_integration import get_server_manager
@@ -559,46 +570,49 @@ try:
                     server_manager.stop()
             except Exception as e:
                 logger.error(f"Error stopping server via manager: {e}")
-                
+
             # Last resort: kill any Node.js server process
             try:
                 import psutil
                 for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
                     try:
-                        if proc.info['name'] == 'node' and any('server.js' in arg for arg in (proc.info['cmdline'] or [])):
+                        if proc.info['name'] == 'node' and any(
+                                'server.js' in arg for arg in (proc.info['cmdline'] or [])):
                             logger.info(f"Killing Node.js server process: {proc.info['pid']}")
                             os.kill(proc.info['pid'], signal.SIGKILL)
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         pass
             except Exception as e:
                 logger.error(f"Error finding and killing Node.js processes: {e}")
-                
+
         # Register shutdown handler
         app.aboutToQuit.connect(shutdown_handler)
-        
+
         # Show the window
         window.show()
-        
+
         # Run the app
         return app.exec()
-    
+
+
     # Run our custom function
     sys.exit(custom_run())
 except Exception as e:
     logger.error(f"Error running LLaDA GUI: {e}")
     logger.error(traceback.format_exc())
-    
+
     # Display error message
     try:
         from PyQt6.QtWidgets import QApplication, QMessageBox
+
         app = QApplication([])
         error_msg = f"Error starting LLaDA GUI with memory: {str(e)}\n\n{traceback.format_exc()}"
         QMessageBox.critical(None, "LLaDA GUI Error", error_msg)
     except:
         print(f"Error starting LLaDA GUI with memory: {e}")
-    
+
     # Stop memory server before exiting
     if server_process is not None:
         stop_memory_server(server_process)
-    
+
     sys.exit(1)

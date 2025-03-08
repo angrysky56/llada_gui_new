@@ -5,25 +5,26 @@
 Patch file to fix GPU offloading issues in memory_integration_auto.py
 """
 
-import os
-import sys
 import logging
-import torch
+import sys
+
 import numpy as np
+import torch
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
 
 def apply_gpu_offloading_fixes():
     """Apply fixes to the memory integration system for better GPU offloading."""
     try:
         # 1. Import the memory interface
         from memory_integration_auto import MCPTitanMemoryInterface
-        
+
         # 2. Fix API endpoint paths
         original_init = MCPTitanMemoryInterface.initialize
-        
+
         def patched_initialize(self, input_dim=64, memory_dim=64):
             """Patched initialize method with corrected endpoint."""
             logger.info("Using patched initialize method with improved GPU handling")
@@ -32,27 +33,27 @@ def apply_gpu_offloading_fixes():
                 if not self.server_manager.start_server():
                     logger.error("Failed to start memory server")
                     return False
-            
+
             try:
                 # Use the correct endpoint with improved error handling
                 import requests
-                
+
                 # Free up GPU memory before making request
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
-                
+
                 # Try different endpoint paths to ensure compatibility
                 endpoints = [
                     f"{self.api_url}/init",
                     f"{self.api_url}/init_model"
                 ]
-                
+
                 success = False
                 for endpoint in endpoints:
                     try:
                         logger.info(f"Trying to initialize with endpoint: {endpoint}")
                         response = requests.post(
-                            endpoint, 
+                            endpoint,
                             json={"inputDim": input_dim, "outputDim": memory_dim},
                             timeout=5  # 5 second timeout
                         )
@@ -62,14 +63,14 @@ def apply_gpu_offloading_fixes():
                         break
                     except requests.exceptions.RequestException as e:
                         logger.warning(f"Failed with endpoint {endpoint}: {e}")
-                
+
                 if not success:
                     logger.error("All initialization endpoints failed")
                     return False
-                
+
                 self.input_dim = input_dim
                 self.memory_dim = memory_dim
-                
+
                 # Initialize memory state to zeros
                 self.memory_state = torch.zeros(memory_dim, dtype=torch.float32)
                 if torch.cuda.is_available():
@@ -77,45 +78,45 @@ def apply_gpu_offloading_fixes():
                     self.memory_state = self.memory_state.cpu().numpy()
                 else:
                     self.memory_state = self.memory_state.numpy()
-                
+
                 self.initialized = True
-                
+
                 return True
             except Exception as e:
                 logger.error(f"Failed to initialize memory: {str(e)}")
                 return False
-        
+
         # 3. Fix forward_pass method for better GPU handling
         original_forward = MCPTitanMemoryInterface.forward_pass
-        
+
         def patched_forward_pass(self, input_vector):
             """Patched forward_pass method with improved GPU memory handling."""
             if not self.initialized:
                 raise ValueError("Memory not initialized. Call initialize() first.")
-                
+
             try:
                 # Convert input to CPU numpy array if it's a GPU tensor
                 if isinstance(input_vector, torch.Tensor) and input_vector.device.type == "cuda":
                     input_vector = input_vector.detach().cpu().numpy()
                 elif isinstance(input_vector, torch.Tensor):
                     input_vector = input_vector.detach().numpy()
-                
+
                 # Use the forward endpoint with proper error handling
                 import requests
-                
+
                 # Free some GPU memory before making request
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
-                
+
                 # Try different endpoint paths to ensure compatibility
                 endpoints = [
                     f"{self.api_url}/forward",
                     f"{self.api_url}/forward_pass"
                 ]
-                
+
                 success = False
                 result = None
-                
+
                 for endpoint in endpoints:
                     try:
                         response = requests.post(
@@ -131,19 +132,20 @@ def apply_gpu_offloading_fixes():
                         break
                     except requests.exceptions.RequestException as e:
                         logger.warning(f"Failed with endpoint {endpoint}: {e}")
-                
+
                 if not success or result is None:
                     logger.error("All forward pass endpoints failed")
                     # Return default values
                     return {
                         "predicted": np.zeros(self.input_dim).tolist(),
-                        "newMemory": self.memory_state.tolist() if isinstance(self.memory_state, np.ndarray) else self.memory_state,
+                        "newMemory": self.memory_state.tolist() if isinstance(self.memory_state,
+                                                                              np.ndarray) else self.memory_state,
                         "surprise": 0.0
                     }
-                
+
                 # Update memory state using numpy to save GPU memory
                 self.memory_state = np.array(result.get("memory", result.get("newMemory", [])))
-                
+
                 return {
                     "predicted": result.get("predicted", []),
                     "newMemory": result.get("memory", result.get("newMemory", [])),
@@ -154,28 +156,29 @@ def apply_gpu_offloading_fixes():
                 # Return default values
                 return {
                     "predicted": np.zeros(self.input_dim).tolist(),
-                    "newMemory": self.memory_state.tolist() if isinstance(self.memory_state, np.ndarray) else self.memory_state,
+                    "newMemory": self.memory_state.tolist() if isinstance(self.memory_state,
+                                                                          np.ndarray) else self.memory_state,
                     "surprise": 0.0
                 }
-        
+
         # 4. Create improved server manager for better thread management
         from memory_integration_auto import MemoryServerManager
-        
+
         original_start_server = MemoryServerManager.start_server
-        
+
         def patched_start_server(self):
             """Patched start_server method with better thread and memory management."""
             if self.is_running:
                 logger.info("Memory server is already running")
                 return True
-            
+
             try:
                 logger.info("Starting memory server thread with improved GPU management")
-                
+
                 # Free GPU memory before starting server
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
-                
+
                 # Parse the host and port from the API URL
                 parts = self.api_url.split('://')
                 if len(parts) > 1:
@@ -188,11 +191,11 @@ def apply_gpu_offloading_fixes():
                 else:
                     host = "localhost"
                     port = 3000
-                
+
                 # Import here to avoid circular imports
                 import threading
                 from memory_server.server import start_server
-                
+
                 # Start server in a thread with better exception handling
                 def run_server():
                     try:
@@ -200,21 +203,21 @@ def apply_gpu_offloading_fixes():
                         start_server(host, port)
                     except Exception as e:
                         logger.error(f"Error in memory server thread: {str(e)}")
-                
+
                 self.server_thread = threading.Thread(
                     target=run_server,
                     daemon=True
                 )
                 self.server_thread.start()
-                
+
                 # Wait for server to start (up to 30 seconds)
                 import time
                 import requests
-                
+
                 start_time = time.time()
                 max_wait = 30
                 is_ready = False
-                
+
                 logger.info("Waiting for memory server to initialize...")
                 while time.time() - start_time < max_wait:
                     try:
@@ -226,7 +229,7 @@ def apply_gpu_offloading_fixes():
                     except requests.exceptions.RequestException:
                         # Server not ready yet, wait and retry
                         time.sleep(1)
-                
+
                 if is_ready:
                     logger.info("Memory server started successfully")
                     self.is_running = True
@@ -235,23 +238,24 @@ def apply_gpu_offloading_fixes():
                     logger.error(f"Memory server failed to start in {max_wait} seconds")
                     self.stop_server()
                     return False
-                    
+
             except Exception as e:
                 logger.error(f"Failed to start memory server: {str(e)}")
                 self.stop_server()
                 return False
-        
+
         # 5. Apply all the patches
         MCPTitanMemoryInterface.initialize = patched_initialize
         MCPTitanMemoryInterface.forward_pass = patched_forward_pass
         MemoryServerManager.start_server = patched_start_server
-        
+
         logger.info("Successfully applied GPU offloading fixes to memory integration")
         return True
-    
+
     except Exception as e:
         logger.error(f"Failed to apply GPU offloading fixes: {str(e)}")
         return False
+
 
 # Apply fixes when imported
 if __name__ != "__main__":
@@ -261,8 +265,9 @@ if __name__ != "__main__":
 if __name__ == "__main__":
     success = apply_gpu_offloading_fixes()
     print(f"Applied GPU offloading fixes: {'Success' if success else 'Failed'}")
-    
+
     if len(sys.argv) > 1 and sys.argv[1] == "--launch":
         # Launch the memory integration with fixes
         from memory_integration_auto import main
+
         main()

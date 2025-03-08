@@ -9,9 +9,10 @@ when using extreme memory mode.
 """
 
 import os
-import sys
 import re
+import sys
 from pathlib import Path
+
 
 def patch_gui_file():
     """
@@ -22,20 +23,20 @@ def patch_gui_file():
     if not os.path.exists(gui_path):
         print(f"Error: Could not find GUI file at {gui_path}")
         return False
-    
+
     print(f"Patching GUI file at {gui_path}")
-    
+
     # Read the file content
     with open(gui_path, "r") as f:
         content = f.read()
-    
+
     # Create a backup
     backup_path = gui_path.with_suffix(".py.extreme_backup")
     if not backup_path.exists():
         with open(backup_path, "w") as f:
             f.write(content)
         print(f"Created backup at {backup_path}")
-    
+
     # Find the extreme mode section
     extreme_mode_pattern = re.compile(
         r"# Add warning for extreme mode.*?"
@@ -52,7 +53,7 @@ def patch_gui_file():
         r"\s+config\['block_length'\] = 32)",
         re.DOTALL
     )
-    
+
     # Replacement code with warnings but no forced limits
     replacement = """        # Show warnings for extreme mode without forcing limits
         warnings = []
@@ -91,37 +92,39 @@ def patch_gui_file():
                 if config['block_length'] > 32:
                     self.block_length_spin.setValue(32)
                     config['block_length'] = 32"""
-    
+
     # Apply the patch
     if extreme_mode_pattern.search(content):
         new_content = extreme_mode_pattern.sub(replacement, content)
-        
+
         # Write the updated content
         with open(gui_path, "w") as f:
             f.write(new_content)
-        
+
         print("Successfully patched the GUI file to replace hard limits with warnings.")
         return True
     else:
         print("Could not find the extreme mode section in the GUI file.")
         return False
 
+
 def main():
     """Main function."""
     print("LLaDA GUI Extreme Mode Patch")
     print("============================")
     print("This patch replaces hard limits with warnings when using extreme memory mode.")
-    
+
     success = patch_gui_file()
-    
+
     if success:
         print("\nPatch applied successfully!")
         print("You can now use higher step counts with extreme memory mode if your GPU can handle it.")
         print("If you encounter out-of-memory errors, try reducing the parameters.")
     else:
         print("\nFailed to apply the patch.")
-    
+
     return 0 if success else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

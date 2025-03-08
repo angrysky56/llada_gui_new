@@ -8,15 +8,13 @@ This script directly starts the memory server and verifies its connection.
 It focuses purely on getting the memory server running correctly.
 """
 
-import os
-import sys
-import subprocess
-import time
-import socket
-import json
-import shutil
 import logging
+import os
 import signal
+import socket
+import subprocess
+import sys
+import time
 
 # Configure logging
 logging.basicConfig(
@@ -24,6 +22,7 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger("memory_fix")
+
 
 def is_port_in_use(port=3000):
     """Check if port is in use."""
@@ -33,23 +32,24 @@ def is_port_in_use(port=3000):
     except:
         return False
 
+
 def kill_memory_processes():
     """Kill any existing memory server processes using port 3000."""
     logger.info("Checking for processes using port 3000...")
-    
+
     # First try to find processes using the port
     try:
         # Find PIDs of processes using port 3000
         output = subprocess.check_output(
-            ['lsof', '-i', ':3000', '-t'], 
+            ['lsof', '-i', ':3000', '-t'],
             stderr=subprocess.STDOUT,
             universal_newlines=True
         ).strip()
-        
+
         if output:
             pids = output.split('\n')
             logger.info(f"Found processes using port 3000: {pids}")
-            
+
             # Kill each process
             for pid in pids:
                 try:
@@ -63,7 +63,7 @@ def kill_memory_processes():
         logger.info("No processes found using port 3000")
     except Exception as e:
         logger.error(f"Error checking processes: {e}")
-    
+
     # Also try using pkill
     try:
         subprocess.run(['pkill', '-f', 'server.py'], check=False)
@@ -72,17 +72,18 @@ def kill_memory_processes():
     except Exception as e:
         logger.error(f"Error using pkill: {e}")
 
+
 def create_python_server():
     """Create a simple Python memory server."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     server_dir = os.path.join(script_dir, 'core', 'memory', 'memory_server')
     server_py = os.path.join(server_dir, 'server.py')
-    
+
     # Create directory if it doesn't exist
     os.makedirs(server_dir, exist_ok=True)
-    
+
     logger.info(f"Creating Python memory server at {server_py}")
-    
+
     # Server content as a string
     server_content = '''#!/usr/bin/env python
 # -*- coding: utf-8 -*-
@@ -322,33 +323,34 @@ if __name__ == '__main__':
         logger.error(f"Error starting server: {e}")
         sys.exit(1)
 '''
-    
+
     # Write to file
     with open(server_py, 'w') as f:
         f.write(server_content)
-    
+
     # Make executable
     os.chmod(server_py, 0o755)
-    
+
     # Create __init__.py if it doesn't exist
     init_py = os.path.join(server_dir, '__init__.py')
     if not os.path.exists(init_py):
         with open(init_py, 'w') as f:
             f.write("# Memory server package\n")
-    
+
     # Create models directory
     models_dir = os.path.join(server_dir, 'models')
     os.makedirs(models_dir, exist_ok=True)
-    
+
     return server_py
+
 
 def install_dependencies():
     """Install required dependencies."""
     logger.info("Installing required dependencies...")
-    
+
     try:
         subprocess.check_call([
-            sys.executable, '-m', 'pip', 'install', 
+            sys.executable, '-m', 'pip', 'install',
             'flask', 'flask-cors', 'numpy', 'requests'
         ])
         logger.info("Dependencies installed successfully")
@@ -357,11 +359,12 @@ def install_dependencies():
         logger.error(f"Error installing dependencies: {e}")
         return False
 
+
 def start_memory_server():
     """Start the memory server process."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     server_py = os.path.join(script_dir, 'core', 'memory', 'memory_server', 'server.py')
-    
+
     # Create server script if it doesn't exist
     if not os.path.exists(server_py):
         server_py = create_python_server()
@@ -369,27 +372,27 @@ def start_memory_server():
         # Check if server.py has the required API endpoints
         with open(server_py, 'r') as f:
             content = f.read()
-            
+
         missing_endpoint = False
-        required_endpoints = ['/api/status', '/api/init_model', '/api/forward_pass', '/api/train_step', 
-                             '/api/save_model', '/api/load_model', '/reset', '/api/reset_memory', 
-                             '/memory', '/api/memory_state']
-        
+        required_endpoints = ['/api/status', '/api/init_model', '/api/forward_pass', '/api/train_step',
+                              '/api/save_model', '/api/load_model', '/reset', '/api/reset_memory',
+                              '/memory', '/api/memory_state']
+
         for endpoint in required_endpoints:
             if endpoint not in content:
                 missing_endpoint = True
                 logger.warning(f"Server.py is missing endpoint: {endpoint}")
-                
+
         if missing_endpoint:
             logger.info(f"Server.py is missing required endpoints. Creating a new server script.")
             server_py = create_python_server()
-    
+
     logger.info(f"Starting memory server: {server_py}")
-    
+
     try:
         # Create log file
         log_file = open('memory_server.log', 'w')
-        
+
         # Start server process
         process = subprocess.Popen(
             [sys.executable, server_py, '--host', '127.0.0.1', '--port', '3000'],
@@ -397,16 +400,16 @@ def start_memory_server():
             stderr=log_file,
             start_new_session=True
         )
-        
+
         # Write PID to file
         with open('memory_server.pid', 'w') as f:
             f.write(str(process.pid))
-        
+
         # Wait for server to start
         logger.info("Waiting for server to start...")
         max_wait = 10
         start_time = time.time()
-        
+
         while time.time() - start_time < max_wait:
             if is_port_in_use(3000):
                 # Test connection using requests
@@ -415,13 +418,13 @@ def start_memory_server():
                     response = requests.get('http://localhost:3000/status')
                     if response.status_code == 200:
                         logger.info("Memory server started successfully!")
-                        
+
                         # Initialize model
                         init_response = requests.post(
                             'http://localhost:3000/api/init_model',
                             json={"inputDim": 64, "outputDim": 64}
                         )
-                        
+
                         if init_response.status_code == 200:
                             logger.info("Model initialized successfully")
                             return True
@@ -429,14 +432,15 @@ def start_memory_server():
                             logger.error(f"Failed to initialize model: {init_response.text}")
                 except Exception as e:
                     logger.warning(f"Error testing server: {e}")
-            
+
             time.sleep(1)
-        
+
         logger.error("Timed out waiting for server to start")
         return False
     except Exception as e:
         logger.error(f"Error starting server: {e}")
         return False
+
 
 def main():
     """Main function."""
@@ -445,25 +449,25 @@ def main():
         logger.info("Prepare-only mode: Creating server file if needed without starting server")
         script_dir = os.path.dirname(os.path.abspath(__file__))
         server_py = os.path.join(script_dir, 'core', 'memory', 'memory_server', 'server.py')
-        
+
         # Create server script if it doesn't exist
         if not os.path.exists(server_py):
             server_py = create_python_server()
             logger.info(f"Created server script at {server_py}")
         else:
             logger.info(f"Server script already exists at {server_py}")
-            
+
         return 0
     # Kill any existing memory server processes
     kill_memory_processes()
-    
+
     # Install dependencies
     install_dependencies()
-    
+
     # Start memory server
     if start_memory_server():
         logger.info("Memory server is now running!")
-        
+
         # Keep process running to maintain server
         try:
             print("Memory server is running. Press Ctrl+C to exit.")
@@ -472,11 +476,12 @@ def main():
         except KeyboardInterrupt:
             logger.info("Exiting...")
             return 0
-        
+
         return 0
     else:
         logger.error("Failed to start memory server")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -8,23 +8,24 @@ This checks if the memory server can be started and responds to basic API reques
 """
 
 import os
-import sys
 import subprocess
+import sys
 import time
+
 import requests
-import signal
+
 
 def main():
     """Test memory server functionality."""
     print("Testing memory server functionality...")
-    
+
     # Find Python in venv
     venv_python = './venv/bin/python'
     if os.path.exists(venv_python):
         python_cmd = venv_python
     else:
         python_cmd = sys.executable
-    
+
     # Start memory server
     print("Starting memory server...")
     try:
@@ -33,7 +34,7 @@ def main():
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
-        
+
         # Wait for server to start
         print("Waiting for memory server to start...")
         max_retries = 5
@@ -46,16 +47,16 @@ def main():
                     print(f"Status response: {response.json()}")
                     break
             except requests.exceptions.RequestException as e:
-                print(f"Retry {i+1}/{max_retries}: Server not responding yet ({e.__class__.__name__})")
+                print(f"Retry {i + 1}/{max_retries}: Server not responding yet ({e.__class__.__name__})")
                 if i == max_retries - 1:
                     print("ERROR: Memory server failed to start.")
                     if server_process.poll() is None:
                         server_process.terminate()
                     return 1
-        
+
         # Test API endpoints
         print("\nTesting API endpoints:")
-        
+
         # 1. Initialize model
         try:
             init_response = requests.post(
@@ -63,10 +64,11 @@ def main():
                 json={"inputDim": 64, "outputDim": 64},
                 timeout=2
             )
-            print(f"Initialize model: {init_response.status_code} - {init_response.json() if init_response.status_code == 200 else init_response.text}")
+            print(
+                f"Initialize model: {init_response.status_code} - {init_response.json() if init_response.status_code == 200 else init_response.text}")
         except Exception as e:
             print(f"Error initializing model: {e}")
-        
+
         # 2. Forward pass
         try:
             vector = [0.1] * 64
@@ -75,13 +77,14 @@ def main():
                 json={"x": vector, "memoryState": vector},
                 timeout=2
             )
-            print(f"Forward pass: {forward_response.status_code} - {forward_response.json() if forward_response.status_code == 200 else forward_response.text}")
+            print(
+                f"Forward pass: {forward_response.status_code} - {forward_response.json() if forward_response.status_code == 200 else forward_response.text}")
         except Exception as e:
             print(f"Error in forward pass: {e}")
-        
+
         # All tests completed successfully
         print("\nMemory server test completed successfully!")
-        
+
     except Exception as e:
         print(f"Error testing memory server: {e}")
         return 1
@@ -98,8 +101,9 @@ def main():
                     server_process.kill()
                 except:
                     pass
-    
+
     return 0
+
 
 if __name__ == "__main__":
     # Change to script directory

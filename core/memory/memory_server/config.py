@@ -23,4 +23,5 @@ AUTO_INIT_MODEL = True
 
 # Default model path
 import os
+
 DEFAULT_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models/default_memory_model.json')

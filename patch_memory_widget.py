@@ -7,42 +7,41 @@ Direct patcher for memory widget in LLaDA GUI.
 This script directly modifies the memory visualization widget to fix connection issues.
 """
 
-import os
-import sys
-import re
-import subprocess
-import time
 import logging
+import os
+import re
+import sys
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("memory_patch")
 
+
 def patch_memory_widget():
     """Patch the memory visualization widget."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    
+
     # Find memory integration file
     memory_file = os.path.join(script_dir, "core", "memory", "memory_integration.py")
     if not os.path.exists(memory_file):
         logger.error(f"Memory integration file not found: {memory_file}")
         return False
-    
+
     # Read file content
     with open(memory_file, "r") as f:
         content = f.read()
-    
+
     # Look for MemoryVisualizationWidget connect_memory method
     connect_pattern = r'def connect_memory\(self\):.*?return True'
     connect_match = re.search(connect_pattern, content, re.DOTALL)
-    
+
     if not connect_match:
         logger.error("Could not find connect_memory method in MemoryVisualizationWidget")
         return False
-    
+
     # Get original connect method
     original_connect = connect_match.group(0)
-    
+
     # Create new connect method with direct memory server start
     new_connect = """def connect_memory(self):
         \"\"\"Connect or disconnect the memory system.\"\"\"
@@ -138,16 +137,17 @@ def patch_memory_widget():
                 # Display initial memory state
                 self.display_memory_state(self.memory_interface.get_memory_state())
                 return True"""
-    
+
     # Replace the connect method
     new_content = content.replace(original_connect, new_connect)
-    
+
     # Write back to file
     with open(memory_file, "w") as f:
         f.write(new_content)
-    
+
     logger.info("Successfully patched memory widget connect_memory method")
     return True
+
 
 def main():
     """Main function."""
@@ -155,9 +155,10 @@ def main():
     if not patch_memory_widget():
         logger.error("Failed to patch memory widget")
         return 1
-    
+
     logger.info("Memory widget successfully patched")
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

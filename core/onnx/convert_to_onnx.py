@@ -22,7 +22,6 @@ Examples:
 """
 
 import sys
-import os
 from pathlib import Path
 
 # Add the current directory to the path to find the onnx module

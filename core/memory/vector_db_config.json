@@ -1,8 +1,8 @@
 {
-    "vector_db_path": "/home/ty/Repositories/ai_workspace/llada_gui_new/data/memory/vector_db",
-    "dimension": 64,
-    "use_vector_db": true,
-    "similarity_threshold": 0.7,
-    "max_vectors": 1000,
-    "pruning_strategy": "lru"
+  "vector_db_path": "/home/ty/Repositories/ai_workspace/llada_gui_new/data/memory/vector_db",
+  "dimension": 64,
+  "use_vector_db": true,
+  "similarity_threshold": 0.7,
+  "max_vectors": 1000,
+  "pruning_strategy": "lru"
 }

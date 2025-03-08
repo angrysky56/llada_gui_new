@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+
 """
 Optimized generation algorithm for LLaDA models.
 This version implements several optimizations:
@@ -9,286 +10,339 @@ This version implements several optimizations:
 3. Memory guidance integration
 """
 
-import torch
-import numpy as np
-import torch.nn.functional as F
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Optional, Callable, List
+
+import torch
+import torch.nn.functional as F
+from torch import topk, cuda, stack, bool, log, chunk, no_grad, long, zeros_like, empty, div, \
+    int64, cat, where, Tensor, gather, tensor, zeros, argmax, rand_like, device, linspace, \
+    full
 
 logger = logging.getLogger(__name__)
+torch._dynamo.config.capture_scalar_outputs = True
 
-# Configure a default device based on availability
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-CPU_DEVICE = torch.device("cpu")
+DEVICE = device("cuda" if cuda.is_available() else "cpu")
+CPU_DEVICE = device("cpu")
+MASK_TOKEN_ID_DEFAULT = 126336  # Default mask token ID
+EPSILON = 1e-10
+
 
 class TokenBuffer:
     """Memory-efficient token buffer that can offload to CPU when needed."""
-    
+
     def __init__(self, data, device=DEVICE, cpu_offload=True):
-        """Initialize buffer with data, optionally on a specific device."""
+        """Initialize buffer with data on the specified device."""
         self.cpu_offload = cpu_offload
         self.device = device
-        self._data = data.to(self.device if not cpu_offload else CPU_DEVICE)
+        self._data = data.to(device if not cpu_offload else CPU_DEVICE)
         self._is_on_gpu = not cpu_offload
-    
+
     @property
-    def data(self):
+    def data(self) -> Tensor:
         """Get data, moving to GPU if needed."""
         if not self._is_on_gpu and self.cpu_offload:
             self._data = self._data.to(self.device)
             self._is_on_gpu = True
         return self._data
-    
+
     def update(self, data):
         """Update buffer with new data."""
-        if self._is_on_gpu or not self.cpu_offload:
-            self._data = data
-        else:
-            self._data = data.to(CPU_DEVICE)
-    
+        self._data = data if self._is_on_gpu or not self.cpu_offload else data.to(CPU_DEVICE)
+
     def to_cpu(self):
         """Move data to CPU if not already there."""
         if self._is_on_gpu and self.cpu_offload:
             self._data = self._data.to(CPU_DEVICE)
             self._is_on_gpu = False
-    
+
     def to_gpu(self):
         """Move data to GPU if not already there."""
         if not self._is_on_gpu and self.cpu_offload:
             self._data = self._data.to(self.device)
             self._is_on_gpu = True
-    
-    def clone(self):
+
+    def clone(self) -> 'TokenBuffer':
         """Create a clone of the buffer."""
         return TokenBuffer(self._data.clone(), self.device, self.cpu_offload)
 
 
-class AttentionCache:
-    """Cache for past key/values to avoid recomputation."""
-    
-    def __init__(self, model, cpu_offload=True):
-        """Initialize empty cache for a specific model."""
-        self.model = model
-        self.cache = {}
-        self.cpu_offload = cpu_offload
-    
-    def get(self, key, default=None):
-        """Get a value from the cache, loading to the correct device if needed."""
-        if key not in self.cache:
-            return default
-        
-        # Load from CPU if needed
-        if self.cpu_offload and isinstance(self.cache[key], torch.Tensor) and self.cache[key].device.type == "cpu":
-            self.cache[key] = self.cache[key].to(DEVICE)
-        
-        return self.cache[key]
-    
-    def set(self, key, value):
-        """Set a value in the cache, offloading to CPU if configured."""
-        if self.cpu_offload and isinstance(value, torch.Tensor) and value.device.type != "cpu":
-            self.cache[key] = value.to(CPU_DEVICE)
-        else:
-            self.cache[key] = value
-    
-    def clear(self):
-        """Clear the cache."""
-        self.cache = {}
-
-
-def add_gumbel_noise(logits, temperature):
+@torch.compile
+def add_gumbel_noise(logits: Tensor, temperature: float, epsilon: float) -> Tensor:
     """
     Add Gumbel noise for sampling categorical distributions.
-    
+
     Args:
         logits: Raw logits from the model
         temperature: Sampling temperature
-    
+
     Returns:
         Logits with Gumbel noise applied
     """
-    # Always use a supported dtype (bfloat16 can cause issues)
-    if temperature > 0:
-        # For non-zero temperatures, use float32 for better compatibility
-        dtype = torch.float32
-        # Convert bfloat16 to float32 if needed
-        if logits.dtype == torch.bfloat16:
-            logits = logits.to(torch.float32)
-        elif logits.dtype != torch.float32:
-            logits = logits.to(dtype)
-            
-        noise = torch.rand_like(logits, dtype=dtype)
-        gumbel_noise = (- torch.log(noise)) ** temperature
-        return logits.exp() / gumbel_noise
-    else:
-        # For zero temperature, no need for noise
-        # Still convert bfloat16 to float16 for compatibility
-        if logits.dtype == torch.bfloat16:
-            return logits.to(torch.float16)
-        return logits
+    noise = rand_like(logits)
+
+    gumbel_noise = (-log(noise + epsilon)) ** temperature
+
+    return logits / gumbel_noise
 
 
-def get_adaptive_transfer_schedule(mask_index, steps, min_steps=4, confidence_threshold=0.9):
+@torch.compile
+def get_adaptive_transfer_schedule(mask_index: Tensor, steps: int) -> Tensor:
     """
-    Creates an adaptive schedule for token transfers, using fewer steps for easier tokens.
-    
+    Create an adaptive schedule for token transfers, front-loading more tokens in earlier steps.
+
     Args:
         mask_index: Boolean tensor indicating masked tokens
-        steps: Maximum number of steps to use
-        min_steps: Minimum number of steps to use
-        confidence_threshold: Threshold for considering a token "confident"
-    
+        steps: Number of steps to schedule
+        min_steps: Minimum number of steps (default: 4)
+
     Returns:
-        Tensor containing number of tokens to transfer at each step
+        Tensor of shape (batch_size, steps) with number of tokens to transfer per step
     """
     mask_num = mask_index.sum(dim=1, keepdim=True)
-    
-    # Start with a standard distribution
-    base = mask_num // steps
-    remainder = mask_num % steps
-    
-    # Create the transfer schedule, front-loading more tokens in earlier steps
-    # This helps generate high-confidence tokens more quickly
-    num_transfer_tokens = torch.zeros(mask_num.size(0), steps, device=mask_index.device, dtype=torch.int64)
-    
-    # Weighted distribution - transfer more tokens in early steps
-    weights = torch.linspace(1.5, 0.5, steps)
+    num_transfer_tokens = zeros(mask_num.size(0), steps, device=mask_index.device, dtype=int64)
+
+    weights = linspace(1.5, 0.5, steps)
     weights = weights / weights.sum() * steps
-    
+
     for i in range(mask_num.size(0)):
-        # Distribute tokens according to weights, ensuring we use all tokens
-        weighted_tokens = (weights * (mask_num[i].item() / steps)).round().to(torch.int64)
-        
-        # Ensure we assign all tokens
-        diff = mask_num[i].item() - weighted_tokens.sum().item()
+        maski = mask_num[i]
+        mi = maski.item()
+        weighted_tokens = (weights * (mi / steps)).round().to(int64)
+        diff = mi - weighted_tokens.sum().item()
         if diff > 0:
-            # Add remaining tokens to the first steps
             for j in range(diff):
                 weighted_tokens[j % steps] += 1
         elif diff < 0:
-            # Remove excess tokens from the last steps
             for j in range(-diff):
-                if weighted_tokens[-(j % steps) - 1] > 0:
-                    weighted_tokens[-(j % steps) - 1] -= 1
-        
+                index = -(j % steps) - 1
+                if weighted_tokens[index] > 0:
+                    weighted_tokens[index] -= 1
         num_transfer_tokens[i] = weighted_tokens
-    
+
     return num_transfer_tokens
 
 
-def chunk_processing(model, tokens, chunk_size=512):
+def chunk_processing(model, tokens: Tensor, chunk_size: int = 512) -> Tensor:
     """
-    Process tokens in chunks to reduce memory usage.
-    
+    Process tokens in chunks to reduce memory usage for long sequences.
+
     Args:
-        model: The language model
-        tokens: Input tokens
-        chunk_size: Size of chunks to process
-    
+        model: Language model
+        tokens: Input token tensor
+        chunk_size: Size of each chunk (default: 512)
+
     Returns:
-        Model output logits
+        Concatenated logits from model output
     """
     seq_len = tokens.shape[1]
-    
-    # If sequence is short enough, process directly
     if seq_len <= chunk_size:
         return model(tokens).logits
-    
-    # Otherwise, process in chunks and combine
+
     all_logits = []
     for i in range(0, seq_len, chunk_size):
         end_idx = min(i + chunk_size, seq_len)
         chunk = tokens[:, i:end_idx]
-        
-        # Process chunk
-        with torch.no_grad():
+        with no_grad():
             chunk_output = model(chunk).logits
-        
         all_logits.append(chunk_output)
-    
-    # Combine chunks
-    return torch.cat(all_logits, dim=1)
+    return cat(all_logits, dim=1)
 
 
-@torch.no_grad()
-def generate(
-    model, 
-    prompt, 
-    steps=128, 
-    gen_length=128, 
-    block_length=128, 
-    temperature=0.,
-    cfg_scale=0., 
-    remasking='low_confidence', 
-    mask_id=126336,
-    cpu_offload=True,
-    adaptive_steps=True,
-    progress_callback=None,
-    memory_integration=None,
-    confidence_threshold=0.9,
-    chunk_size=512,
-    memory_weight=0.3,
-    tokenizer=None,
-    device=DEVICE
-):
+def _get_model_logits(model, x, cfg_scale, chunk_size, mask_id, prompt_index):
+    """Helper function to get logits from the model, with optional CFG."""
+    if cfg_scale > 0:
+        un_x = x.clone()
+        un_x[prompt_index] = mask_id
+        logits, un_logits = chunk(chunk_processing(model, cat([x, un_x], dim=0), chunk_size=chunk_size), 2, dim=0)
+        return un_logits + (cfg_scale + 1) * (logits - un_logits)
+    else:
+        return chunk_processing(model, x, chunk_size=chunk_size)
+
+
+
+def apply_memory_guidance(logits, x, memory_integration, mask_index):
     """
-    Optimized generation function for LLaDA models.
-    
+    Apply memory guidance to adjust logits based on external memory.
+
     Args:
-        model: The language model
-        prompt: Input prompt tokens
-        steps: Maximum number of sampling steps
-        gen_length: Length of the generated text
-        block_length: Block size for generation
-        temperature: Sampling temperature
-        cfg_scale: Classifier-free guidance scale
-        remasking: Strategy for remasking tokens ('low_confidence' or 'random')
-        mask_id: Token ID for the mask token
-        cpu_offload: Whether to offload tensors to CPU when not in use
-        adaptive_steps: Whether to use adaptive step scheduling
-        progress_callback: Callback function for progress updates
-        memory_integration: Optional memory integration module
-        confidence_threshold: Confidence threshold for early stopping
-        chunk_size: Size of chunks for processing long sequences
-        device: Device to use for computation
-    
+        logits: Model logits
+        x: Current sequence tokens
+        memory_integration: Memory integration module (optional)
+        mask_index: Boolean tensor indicating masked tokens
+
     Returns:
-        Generated tokens
+        Adjusted logits
     """
-    model.eval()  # Ensure model is in evaluation mode
-    
-    # Validate parameters
+    if memory_integration and memory_integration.is_initialized():
+        token_probs = F.softmax(logits, dim=-1)
+        tokenProbSize = token_probs.size(-1)
+        token_sequence = x[0].tolist() # Keep as tensor if memory_integration can handle it
+        for pos in range(x.size(1)):
+            if mask_index[0, pos]:
+                pos_probs = token_probs[0, pos] # Keep as tensor if memory_integration can handle it
+                guided_probs = memory_integration.apply_memory_guidance(
+                    pos_probs, token_sequence, tokenProbSize
+                )
+                token_probs[0, pos] = guided_probs # Assuming memory_integration returns tensor
+        logits = log(token_probs + EPSILON)
+    return logits
+
+
+def _select_tokens_to_transfer_block(confidence_block, mask_index_block, num_transfer_tokens_block, step):
+    """Helper function to select tokens to transfer within a block."""
+    transfer_index_block = zeros_like(confidence_block, dtype=bool, device=confidence_block.device)
+    masked_positions = mask_index_block.nonzero().squeeze(0) # Squeeze for single batch
+    num_masked = masked_positions.size(0)
+    tokens_to_transfer = num_transfer_tokens_block[step].item()
+    if tokens_to_transfer > 0 and num_masked > 0:
+        k = min(tokens_to_transfer, num_masked)
+        _, select_index = topk(confidence_block[masked_positions], k=k)
+        transfer_index_block[masked_positions[select_index]] = True
+    return transfer_index_block
+
+
+def select_tokens_to_transfer(confidence, mask_index, num_transfer_tokens, step):
+    """
+    Select tokens to transfer based on confidence scores and schedule.
+
+    Args:
+        confidence: Confidence scores for each token
+        mask_index: Boolean tensor indicating masked tokens
+        num_transfer_tokens: Tensor with number of tokens to transfer per step
+        step: Current step index
+
+    Returns:
+        Boolean tensor indicating tokens to transfer
+    """
+    batch_size = confidence.shape[0]
+    transfer_index = zeros_like(confidence, dtype=bool, device=confidence.device)
+    for j in range(batch_size):
+        masked_positions = mask_index[j].nonzero().squeeze(1)
+        num_masked = masked_positions.size(0)
+        tokens_to_transfer = num_transfer_tokens[j, step].item()
+        if tokens_to_transfer > 0 and num_masked > 0:
+            k = min(tokens_to_transfer, num_masked)
+            _, select_index = topk(confidence[j, masked_positions], k=k)
+            transfer_index[j, masked_positions[select_index]] = True
+    return transfer_index
+
+
+def get_model_logits(cfg_scale, chunk_size, mask_id, mask_index, memory_integration, model, prompt_index, x):
+    logits = _get_model_logits(model, x, cfg_scale, chunk_size, mask_id, prompt_index)
+    logits = apply_memory_guidance(logits, x, memory_integration, mask_index)
+
+    #if logits.dtype != torch.float32: logits = logits.to(torch.float32)
+
+    return logits
+
+def logitSample(cfg_scale, chunk_size, mask_id, mask_index, memory_integration, model, prompt_index, remasking, temperature, x):
+    # Model processing and guidance
+    logits = get_model_logits(cfg_scale, chunk_size, mask_id, mask_index, memory_integration, model, prompt_index, x)
+
+    if temperature>0:
+        logits = add_gumbel_noise(logits, temperature, EPSILON)
+
+    x0 = argmax(logits, dim=-1)
+
+    # Compute confidence for remasking
+    if remasking == 'low_confidence':
+        x0_p = remaskConf(logits, temperature, x0)
+    elif remasking == 'random':
+        x0_p = rand_like(x0, device=x0.device)
+    else:
+        raise NotImplementedError(f"Unsupported remasking strategy: {remasking}")
+    return x0, x0_p
+
+
+@torch.compile
+def remaskConf(logits:Tensor, temperature:float, x0:Tensor)->Tensor:
+    p = F.softmax(logits / temperature if temperature > 0 else logits, dim=-1) # Apply temperature scaling to logits before softmax, or if temperature is <=0, use standard softmax
+    return gather(p, dim=-1, index=x0.unsqueeze(-1)).squeeze(-1)
+
+
+def generateStep(model, x, cfg_scale, chunk_size, mask_id, prompt_index,
+                 memory_integration, temperature, remasking, step,
+                 num_transfer_tokens, block_start, block_end, mask_index) -> tuple[Tensor, Tensor, Tensor]:
+    """Inner iteration of generate"""
+
+    x0, x0_p = logitSample(cfg_scale, chunk_size, mask_id, mask_index, memory_integration, model, prompt_index,
+                           remasking, temperature, x)
+
+    # Restrict confidence to current block
+    confidence = where(mask_index, x0_p, tensor(-float('inf'), device=x.device))
+    confidence[:, :block_start] = confidence[:, block_end:] = -float('inf')
+
+    # Select and transfer tokens
+    transfer_index = select_tokens_to_transfer(confidence, mask_index, num_transfer_tokens, step)
+    return x0, transfer_index, confidence # Return confidence
+
+
+@no_grad()
+def generate(
+    model,
+    prompt: Tensor,
+    steps: int = 128,
+    gen_length: int = 128,
+    block_length: int = 128,
+    temperature: float = 0.0,
+    cfg_scale: float = 0.0,
+    remasking: str = 'low_confidence',
+    mask_id: int = MASK_TOKEN_ID_DEFAULT,
+    cpu_offload: bool = True,
+    adaptive_steps: bool = True,
+    progress_callback: Optional[Callable[[float, Tensor], None]] = None,
+    memory_integration=None,
+    chunk_size: int = 512,
+    device: device = DEVICE
+) -> Tensor:
+    """
+    Generate text using the LLaDA model with optimized memory and step scheduling.
+
+    Args:
+        model: Language model
+        prompt: Input prompt tensor (shape: [1, seq_len])
+        steps: Maximum number of sampling steps (default: 128)
+        gen_length: Length of text to generate (default: 128)
+        block_length: Size of generation blocks (default: 128)
+        temperature: Sampling temperature (default: 0.0)
+        cfg_scale: Classifier-free guidance scale (default: 0.0)
+        remasking: Remasking strategy ('low_confidence' or 'random', default: 'low_confidence')
+        mask_id: Mask token ID (default: MASK_TOKEN_ID_DEFAULT)
+        cpu_offload: Enable CPU offloading to save GPU memory (default: True)
+        adaptive_steps: Use adaptive step scheduling (default: True)
+        progress_callback: Optional callback for progress updates
+        memory_integration: Optional memory integration module
+        chunk_size: Chunk size for processing long sequences (default: 512)
+        device: Device for computation (default: DEVICE)
+
+    Returns:
+        Generated token tensor (shape: [1, prompt_len + gen_length])
+    """
+    model.eval()
+
+    #temperature = f32(temperature, device)
+
+    # Adjust gen_length to be divisible by block_length
     if gen_length % block_length != 0:
-        # Find the closest multiple of block_length
         gen_length = ((gen_length + block_length // 2) // block_length) * block_length
         logger.warning(f"Adjusted gen_length to {gen_length} to be divisible by block_length {block_length}")
-    
-    # Check if the model requires CPU offloading
-    model_device = next(model.parameters()).device
-    cpu_offload = cpu_offload and model_device.type == "cuda"
-    
-    # Create output tensor with masks
-    x = torch.full((1, prompt.shape[1] + gen_length), mask_id, dtype=torch.long, device=device)
+
+    # Initialize sequence and token buffer
+    x = full((1, prompt.shape[1] + gen_length), mask_id, dtype=long, device=device)
     x[:, :prompt.shape[1]] = prompt.clone()
-    
-    # Track prompt indices
     prompt_index = (x != mask_id)
-    
-    # Initialize token buffer for memory efficiency
     token_buffer = TokenBuffer(x, device=device, cpu_offload=cpu_offload)
-    
-    # Calculate blocks
-    # Note: We've already validated gen_length is divisible by block_length
+    mask_index = (x == mask_id)
+
     num_blocks = gen_length // block_length
-    
-    # Adjust steps based on blocks
+
+    # Determine steps per block
     if not adaptive_steps:
-        # Ensure steps is divisible by num_blocks
+        steps_per_block = steps // num_blocks
         if steps % num_blocks != 0:
-            steps_per_block = steps // num_blocks
             steps = steps_per_block * num_blocks
             logger.warning(f"Adjusted steps to {steps} to be divisible by num_blocks {num_blocks}")
-        else:
-            steps_per_block = steps // num_blocks
     else:
         # Adaptive scheduling - use more steps for early blocks, fewer for later ones
         steps_per_block_list = []
@@ -297,184 +351,76 @@ def generate(
             decay_factor = 0.8 ** b
             block_steps = max(4, int(steps / num_blocks * decay_factor))
             steps_per_block_list.append(block_steps)
-        
+
         # Normalize to ensure we use approximately the requested total steps
         total_steps = sum(steps_per_block_list)
         if total_steps != steps:
-            scaling_factor = steps / total_steps
-            steps_per_block_list = [max(4, int(s * scaling_factor)) for s in steps_per_block_list]
-    
-    # Initialize attention cache if the model supports it
-    cache = AttentionCache(model, cpu_offload=cpu_offload)
-    
-    # Process each block
-    total_steps_completed = 0
+            steps_per_block_list = [max(4, int(s * steps / total_steps)) for s in steps_per_block_list]
+
     total_steps_expected = steps if not adaptive_steps else sum(steps_per_block_list)
-    
+    total_steps_completed = 0
+    all_step_confidences: List[Tensor] = [] # List to store step confidences
+
     for num_block in range(num_blocks):
-        # Get steps for this block
-        if adaptive_steps:
-            steps_per_block = steps_per_block_list[num_block]
-        
-        # Calculate block mask indices
+        steps_per_block = steps_per_block_list[num_block] if adaptive_steps else steps_per_block
         block_start = prompt.shape[1] + num_block * block_length
-        block_end = prompt.shape[1] + (num_block + 1) * block_length
-        
-        # Move to GPU for this block
-        token_buffer.to_gpu()
-        x = token_buffer.data
-        
-        block_mask_index = (x[:, block_start:block_end] == mask_id)
-        
-        # Skip if no masks in this block
+        block_end = block_start + block_length
+        block_mask_index = mask_index[:, block_start:block_end]
+
         if not block_mask_index.any():
             continue
-        
-        # Get adaptive transfer schedule
-        if adaptive_steps:
-            num_transfer_tokens = get_adaptive_transfer_schedule(
-                block_mask_index, 
-                steps_per_block,
-                min_steps=4,
-                confidence_threshold=confidence_threshold
-            )
-        else:
-            num_transfer_tokens = torch.div(
-                block_mask_index.sum(dim=1, keepdim=True),
-                steps_per_block,
-                rounding_mode='floor'
-            ).repeat(1, steps_per_block)
-            
-            # Handle remainder
-            remainder = block_mask_index.sum(dim=1, keepdim=True) % steps_per_block
-            if remainder.sum() > 0:
-                for i in range(remainder.shape[0]):
-                    num_transfer_tokens[i, :remainder[i]] += 1
-        
-        # Clear any existing cache for new block
-        cache.clear()
-        
-        # Process steps for this block
+
+        # Compute transfer schedule
+        num_transfer_tokens = (
+            get_adaptive_transfer_schedule(block_mask_index, steps_per_block)
+            if adaptive_steps else
+            div(block_mask_index.sum(dim=1, keepdim=True), steps_per_block, rounding_mode='floor').repeat(1, steps_per_block)
+        )
+
+        step_confidences_block: List[Tensor] = [] # Store confidences for this block
         for i in range(steps_per_block):
-            if token_buffer._is_on_gpu:
-                x = token_buffer.data
-            else:
-                token_buffer.to_gpu()
-                x = token_buffer.data
-            
-            # Update progress
+            x = token_buffer.data  # Automatically moves to GPU if needed
+
             if progress_callback:
                 total_steps_completed += 1
-                progress_percentage = total_steps_completed / total_steps_expected
-                progress_callback(progress_percentage, x.clone())
-            
-            # Get current mask indices
-            mask_index = (x == mask_id)
-            
-            # Skip if no masks left
+                progress_callback(total_steps_completed / total_steps_expected, x.clone())
+
             if not mask_index.any():
                 break
-            
-            # Apply classifier-free guidance if needed
-            if cfg_scale > 0.:
-                un_x = x.clone()
-                un_x[prompt_index] = mask_id
-                x_ = torch.cat([x, un_x], dim=0)
-                
-                # Process in chunks if needed to save memory
-                logits = chunk_processing(model, x_, chunk_size=chunk_size)
-                logits, un_logits = torch.chunk(logits, 2, dim=0)
-                logits = un_logits + (cfg_scale + 1) * (logits - un_logits)
-            else:
-                # Process in chunks if needed to save memory
-                logits = chunk_processing(model, x, chunk_size=chunk_size)
-            
-            # Apply memory guidance if available
-            if memory_integration and memory_integration.is_initialized():
-                # Get token probs from model
-                token_probs = F.softmax(logits, dim=-1)
-                
-                # Get current token sequence
-                token_sequence = x[0, :].cpu().numpy().tolist()
-                
-                # Apply memory guidance only to the masked positions
-                for pos in range(x.size(1)):
-                    if mask_index[0, pos]:
-                        # Apply memory guidance to token probabilities
-                        vocab_size = token_probs.size(-1)
-                        
-                        # Convert tensor probs to numpy
-                        pos_probs = token_probs[0, pos].cpu().numpy()
-                        
-                        # Apply memory guidance
-                        guided_probs = memory_integration.apply_memory_guidance(
-                            pos_probs, token_sequence, vocab_size
-                        )
-                        
-                        # Convert back to tensor, ensuring dtype matches
-                        token_probs[0, pos] = torch.tensor(
-                            guided_probs, 
-                            device=token_probs.device,
-                            dtype=token_probs.dtype
-                        )
-                
-                # Convert back to logits for Gumbel sampling
-                epsilon = 1e-10  # Avoid log(0)
-                logits = torch.log(token_probs + epsilon)
-            
-            # Apply Gumbel noise for sampling
-            logits_with_noise = add_gumbel_noise(logits, temperature=temperature)
-            x0 = torch.argmax(logits_with_noise, dim=-1)  # b, l
-            
-            # Calculate token confidence
-            if remasking == 'low_confidence':
-                if temperature > 0:
-                    # Use float32 instead of float64 for better efficiency
-                    p = F.softmax(logits, dim=-1)
-                else:
-                    # With zero temperature, we can use float64 for better precision
-                    p = F.softmax(logits.to(torch.float64), dim=-1)
-                
-                x0_p = torch.squeeze(
-                    torch.gather(p, dim=-1, index=torch.unsqueeze(x0, -1)), -1)  # b, l
-            
-            elif remasking == 'random':
-                x0_p = torch.rand((x0.shape[0], x0.shape[1]), device=x0.device)
-            else:
-                raise NotImplementedError(remasking)
-            
-            # Don't consider tokens outside the current block
-            x0_p[:, block_end:] = -np.inf
-            
-            # Replace only masked tokens
-            x0 = torch.where(mask_index, x0, x)
-            confidence = torch.where(mask_index, x0_p, -np.inf)
-            
-            # Determine which tokens to unmask based on confidence
-            transfer_index = torch.zeros_like(x0, dtype=torch.bool, device=x0.device)
-            
-            for j in range(confidence.shape[0]):
-                tokens_to_transfer = num_transfer_tokens[j, i].item()
-                if tokens_to_transfer > 0:
-                    _, select_index = torch.topk(confidence[j], k=min(tokens_to_transfer, torch.sum(mask_index[j]).item()))
-                    transfer_index[j, select_index] = True
-            
-            # Update tokens
+
+            # Process generation step in helper function
+            x0, transfer_index, confidence = generateStep( # Get confidence here
+                model, x, cfg_scale, chunk_size, mask_id, prompt_index,
+                memory_integration, temperature, remasking, i,
+                num_transfer_tokens, block_start, block_end, mask_index
+            )
+            step_confidences_block.append(confidence.clone().cpu()) # Store confidence for this step
+
+            # Update token buffer and mask
             x[transfer_index] = x0[transfer_index]
-            
-            # Update buffer
+            mask_index[transfer_index] = False
             token_buffer.update(x)
-            
-            # Free GPU memory if using CPU offloading
+
+            # Early exit if block is fully generated
+            if not mask_index[:, block_start:block_end].any():
+                break
+
+            # Offload to CPU between steps
             if cpu_offload and i < steps_per_block - 1:
-                token_buffer.to_cpu()
-                torch.cuda.empty_cache()
-        
-        # End of block processing - force move to CPU to save memory
+                gpu_offload_to_cpu(token_buffer)
+
         if cpu_offload:
-            token_buffer.to_cpu()
-            torch.cuda.empty_cache()
-    
-    # Final result
+            gpu_offload_to_cpu(token_buffer)
+        all_step_confidences.extend(step_confidences_block) # Collect confidences from each block
+
     token_buffer.to_gpu()
-    return token_buffer.data
+    # Stack confidences along step dimension after generation
+    step_confidences_tensor = stack(all_step_confidences, dim=0) if all_step_confidences else empty(0)
+    return token_buffer.data, step_confidences_tensor # Return tokens and confidences
+
+
+
+
+def gpu_offload_to_cpu(token_buffer):
+    token_buffer.to_cpu()
+    cuda.empty_cache()

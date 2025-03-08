@@ -96,19 +96,19 @@ You can start the application in several ways:
 3. **Command-line options** (for advanced users):
    ```
    # Standard mode
-   ./launch.sh --standard
+   ./run.py --standard
    
    # Memory-enhanced mode (basic)
-   ./launch.sh --memory
+   ./run.py --memory
    
    # Memory-enhanced mode (improved)
    python run_with_memory_improved.py
    
    # Optimized mode
-   ./launch.sh --optimize
+   ./run.py --optimize
    
    # Extreme optimization mode (for 8-12GB GPUs)
-   ./launch.sh --extreme
+   ./run.py --extreme
    ```
 
 ### Using the Interface

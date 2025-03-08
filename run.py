@@ -11,14 +11,16 @@ Command-line options:
   --help            Show this help message
 """
 
-import os
-import sys
-import torch
-import traceback
-import logging
 import argparse
 import gc
-from pathlib import Path
+import logging
+import os
+import sys
+import traceback
+
+import torch
+
+venv_path = './venv/bin/python'
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="LLaDA GUI - Large Language Diffusion with mAsking")
@@ -35,8 +37,8 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(current_dir)
 
 # Make sure we have the correct Python environment
-if os.path.exists('./venv/bin/python'):
-    python_path = os.path.abspath('./venv/bin/python')
+if os.path.exists(venv_path):
+    python_path = os.path.abspath(venv_path)
     if sys.executable != python_path:
         print(f"Restarting with the virtual environment Python: {python_path}")
         os.execl(python_path, python_path, *sys.argv)
@@ -64,52 +66,53 @@ if os.environ.get("LLADA_MEMORY_ENABLED") == "1" and not args.memory:
     args.memory = True
     print("Memory integration enabled from environment variable")
 
+
 # Main entry point
 def main(argv=None):
     """Main entry point for the application."""
-    
+
     if argv is not None:
         # Use provided arguments
         global args
         args = parser.parse_args(argv)
-        
+
     # Setup advanced memory management by default
     try:
         print("Initializing advanced memory management...")
         # Import and initialize memory management
         from core.memory_management.integration import integrate_memory_management, optimize_memory_for_startup
-        
+
         # Apply startup optimizations
         optimize_memory_for_startup()
-        
+
         # Integrate with the application
         if integrate_memory_management():
             print("Advanced memory management initialized successfully")
         else:
             print("Warning: Failed to initialize advanced memory management, falling back to standard memory handling")
-            
+
     except ImportError:
         print("Warning: Advanced memory management module not found, using standard memory handling")
     except Exception as e:
         print(f"Warning: Error initializing advanced memory management: {str(e)}")
-        
+
     # Setup performance optimizations by default
     try:
         print("Initializing performance optimizations...")
         # Import and initialize performance optimizations
         from core.performance.integration import integrate_performance_optimizations
-        
+
         # Integrate with the application
         if integrate_performance_optimizations():
             print("Performance optimizations initialized successfully")
         else:
             print("Warning: Failed to initialize performance optimizations, falling back to standard performance")
-            
+
     except ImportError:
         print("Warning: Performance optimization module not found, using standard performance")
     except Exception as e:
         print(f"Warning: Error initializing performance optimizations: {str(e)}")
-    
+
     # Apply optimizations if requested
     if args.extreme:
         logger.info("Applying extreme memory optimizations (for 8-12GB GPUs)")
@@ -140,7 +143,7 @@ def main(argv=None):
                 logger.info("Running memory database fix")
                 import subprocess
                 subprocess.run([sys.executable, fix_path], check=False)
-            
+
             # Initialize memory system
             from core.memory.memory_integration import initialize_memory
             if initialize_memory(start_server=True, max_retries=5):
@@ -171,11 +174,11 @@ def main(argv=None):
             torch.cuda.empty_cache()
             # Set environment variables for better memory management
             os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:64"
-            
+
             print(f"CUDA is available. Found {torch.cuda.device_count()} device(s).")
             for i in range(torch.cuda.device_count()):
                 device_props = torch.cuda.get_device_properties(i)
-                total_memory = device_props.total_memory / (1024**3)
+                total_memory = device_props.total_memory / (1024 ** 3)
                 print(f"  Device {i}: {device_props.name} with {total_memory:.2f}GB memory")
         except Exception as e:
             print(f"Warning: Error accessing CUDA: {str(e)}")
@@ -196,22 +199,22 @@ def main(argv=None):
         except ImportError:
             HAS_MEMORY_ADAPTER = False
             logger.warning("Memory adapter not available")
-        
+
         if args.memory:
             # Use enhanced GUI with memory integration
             from core.memory.memory_integration import enhance_llada_gui
             from gui.llada_gui import LLaDAGUI
             EnhancedLLaDAGUI = enhance_llada_gui(LLaDAGUI)
-            
+
             # Manually initialize the app
             from PyQt6.QtWidgets import QApplication
             app = QApplication(sys.argv)
             window = EnhancedLLaDAGUI()
-            
+
             # Explicitly set memory integration checkbox to checked
             if hasattr(window, 'memory_integration'):
                 window.memory_integration.setChecked(True)
-                
+
             window.show()
             return app.exec()
         else:
@@ -228,6 +231,7 @@ def main(argv=None):
         except:
             print(error_msg)
         return 1
+
 
 # Run main if this is the main script
 if __name__ == "__main__":

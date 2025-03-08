@@ -128,3 +128,5 @@ htmlcov/
 # Allow specific configuration files
 !requirements.txt
 !requirements_memory.txt
+.aider*
+data

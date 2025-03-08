@@ -8,9 +8,8 @@ This script adds the auto-train option to the memory visualization
 and ensures training data flow works correctly.
 """
 
-import os
-import sys
 import logging
+import os
 
 # Set up logging
 logging.basicConfig(
@@ -18,6 +17,7 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger("memory_patch")
+
 
 def patch_memory_adapter():
     """Patch the memory adapter module to include auto-training feature."""
@@ -27,9 +27,9 @@ def patch_memory_adapter():
         if not os.path.exists(memory_adapter_path):
             logger.error(f"Memory adapter file not found: {memory_adapter_path}")
             return False
-        
+
         logger.info(f"Memory adapter file: {memory_adapter_path}")
-        
+
         # Check if update file exists and is newer
         memory_update_path = os.path.join(os.path.dirname(memory_adapter_path), "memory_update.py")
         if not os.path.exists(memory_update_path):
@@ -92,15 +92,15 @@ def update_memory_after_generation(gui_instance, prompt, generated_text):
                 except Exception as e:
                     logger.error(f"Error in auto-training: {e}")
 """)
-        
+
         # Update the memory_adapter.py file to import and use the new module
         with open(memory_adapter_path, "r") as f:
             content = f.read()
-        
+
         # Add import if it doesn't exist
         if "from .memory_update import update_memory_after_generation" not in content:
             import_line = "# Import memory update helper\ntry:\n    from .memory_update import update_memory_after_generation\n    HAS_MEMORY_UPDATE = True\nexcept ImportError:\n    HAS_MEMORY_UPDATE = False\n    print(\"Warning: Memory update module not available\")\n"
-            
+
             # Find a good place to add the import
             import_section_end = content.find("# Configure logging")
             if import_section_end > 0:
@@ -109,10 +109,10 @@ def update_memory_after_generation(gui_instance, prompt, generated_text):
                 import_section_end = content.find("import logging")
                 if import_section_end > 0:
                     line_end = content.find("\n", import_section_end)
-                    content = content[:line_end+1] + "\n" + import_line + content[line_end+1:]
+                    content = content[:line_end + 1] + "\n" + import_line + content[line_end + 1:]
                 else:
                     content = import_line + content
-            
+
             # Add HAS_MEMORY_UPDATE global if needed
             memory_interfaces_pos = content.find("# Memory interfaces")
             if memory_interfaces_pos > 0:
@@ -121,11 +121,11 @@ def update_memory_after_generation(gui_instance, prompt, generated_text):
                     end_pos = content.find("\n\n", memory_interfaces_pos)
                     if end_pos > 0:
                         content = content[:end_pos] + "\nHAS_MEMORY_UPDATE = False" + content[end_pos:]
-            
+
             # Add hook for generation_finished
             if "def handle_memory_integration" in content:
                 handle_pos = content.find("def handle_memory_integration")
-                
+
                 # Find where to insert the memory update hook
                 func_start = content.find("{", handle_pos)
                 if func_start > 0:
@@ -151,17 +151,18 @@ def update_memory_after_generation(gui_instance, prompt, generated_text):
             # Replace the function with our wrapper
             gui_instance.generation_finished = memory_aware_generation_finished
 """
-                        content = content[:next_line+1] + memory_hook + content[next_line+1:]
-        
+                        content = content[:next_line + 1] + memory_hook + content[next_line + 1:]
+
         # Write updated content back to file
         with open(memory_adapter_path, "w") as f:
             f.write(content)
-        
+
         logger.info("Updated memory adapter to include memory update module")
         return True
     except Exception as e:
         logger.error(f"Error patching memory adapter: {e}")
         return False
+
 
 def patch_memory_visualization():
     """Patch the memory visualization widget to add auto-train checkbox."""
@@ -171,23 +172,23 @@ def patch_memory_visualization():
         if not os.path.exists(memory_integration_path):
             logger.error(f"Memory integration file not found: {memory_integration_path}")
             return False
-        
+
         # Read the file
         with open(memory_integration_path, "r") as f:
             content = f.read()
-        
+
         # Check if auto-train already exists
         if "auto_train = QCheckBox" in content:
             logger.info("Auto-train checkbox already exists")
             return True
-        
+
         # Find the memory influence section where we want to add the checkbox
         influence_section = "# Memory influence settings"
         influence_pos = content.find(influence_section)
         if influence_pos < 0:
             logger.error("Could not find memory influence section")
             return False
-        
+
         # Find where to insert the auto-train checkbox
         memory_layout_pos = content.find("memory_layout.addLayout(influence_layout)", influence_pos)
         if memory_layout_pos > 0:
@@ -199,20 +200,24 @@ def patch_memory_visualization():
         self.auto_train.setToolTip("Automatically train the memory system on each generated output")
         memory_layout.addWidget(self.auto_train)
         """
-            updated_content = content[:memory_layout_pos + len("memory_layout.addLayout(influence_layout)")] + "\n" + auto_train_code + content[memory_layout_pos + len("memory_layout.addLayout(influence_layout)"):]
-            
+            updated_content = content[:memory_layout_pos + len(
+                "memory_layout.addLayout(influence_layout)")] + "\n" + auto_train_code + content[
+                                                                                         memory_layout_pos + len(
+                                                                                             "memory_layout.addLayout(influence_layout)"):]
+
             # Write updated content
             with open(memory_integration_path, "w") as f:
                 f.write(updated_content)
-            
+
             logger.info(f"Added auto-train checkbox to {memory_integration_path}")
             return True
-        
+
         logger.warning("Could not find right location to add auto-train checkbox")
         return False
     except Exception as e:
         logger.error(f"Error patching memory visualization: {e}")
         return False
+
 
 def update_memory_guidance():
     """Update the memory guidance class to support auto-training."""
@@ -222,35 +227,38 @@ def update_memory_guidance():
         if not os.path.exists(memory_guidance_path):
             logger.error("Could not find memory guidance file")
             return False
-        
+
         # Read the file
         with open(memory_guidance_path, "r") as f:
             content = f.read()
-        
+
         # Check if auto_train already exists
         if "self.auto_train = " in content:
             logger.info("Auto-train flag already exists in memory guidance")
             return True
-        
+
         # Find the initialization section
         init_pos = content.find("self.confidence_threshold = 0.7")
         if init_pos > 0:
             # Add auto_train property
             auto_train_code = "\n        self.auto_train = True  # Enable automatic training by default"
-            updated_content = content[:init_pos + len("self.confidence_threshold = 0.7")] + auto_train_code + content[init_pos + len("self.confidence_threshold = 0.7"):]
-            
+            updated_content = content[:init_pos + len("self.confidence_threshold = 0.7")] + auto_train_code + content[
+                                                                                                              init_pos + len(
+                                                                                                                  "self.confidence_threshold = 0.7"):]
+
             # Write updated content
             with open(memory_guidance_path, "w") as f:
                 f.write(updated_content)
-            
+
             logger.info("Added auto-train flag to memory guidance")
             return True
-        
+
         logger.warning("Could not find right location to add auto-train flag")
         return False
     except Exception as e:
         logger.error(f"Error updating memory guidance: {e}")
         return False
+
 
 def update_memory_handler():
     """Update the memory handler to connect the auto-train option."""
@@ -260,16 +268,16 @@ def update_memory_handler():
         if not os.path.exists(memory_handler_path):
             logger.error("Could not find memory handler file")
             return False
-        
+
         # Read the file
         with open(memory_handler_path, "r") as f:
             content = f.read()
-        
+
         # Check if auto-train checking already exists
         if "memory_guidance.auto_train = " in content:
             logger.info("Auto-train flag setting already exists in memory handler")
             return True
-        
+
         # Find where to insert the auto-train code
         memory_guidance_pos = content.find("memory_guidance = TitanMemoryGuidance(")
         if memory_guidance_pos > 0:
@@ -287,19 +295,20 @@ def update_memory_handler():
             memory_guidance.auto_train = gui_instance.memory_viz.auto_train.isChecked()
 """
                     updated_content = content[:next_line] + auto_train_code + content[next_line:]
-                    
+
                     # Write updated content
                     with open(memory_handler_path, "w") as f:
                         f.write(updated_content)
-                    
+
                     logger.info("Added auto-train setting to memory handler")
                     return True
-        
+
         logger.warning("Could not find right location to add auto-train setting")
         return False
     except Exception as e:
         logger.error(f"Error updating memory handler: {e}")
         return False
+
 
 def add_automatic_training_generation_finished():
     """Add automatic training to the generation_finished method in LLaDA GUI."""
@@ -309,22 +318,22 @@ def add_automatic_training_generation_finished():
         if not os.path.exists(gui_file):
             logger.error(f"GUI file not found: {gui_file}")
             return False
-        
+
         # Read the file
         with open(gui_file, "r") as f:
             content = f.read()
-        
+
         # Check if memory update is already being called
         if "update_memory_after_generation" in content:
             logger.info("Memory update already being called in generation_finished")
             return True
-        
+
         # Find the generation_finished method
         gen_finished_pos = content.find("def generation_finished")
         if gen_finished_pos < 0:
             logger.error("Could not find generation_finished method")
             return False
-        
+
         # Find where to insert the memory update code
         method_end = content.find("def", gen_finished_pos + 10)
         if method_end > 0:
@@ -343,7 +352,7 @@ def add_automatic_training_generation_finished():
                 init_end = content.find("\n\n", class_init_pos)
                 if init_end > 0:
                     content = content[:init_end] + import_code + content[init_end:]
-            
+
             # Find where to add the memory update in generation_finished
             completion_pos = content.find("self.status_label.setText(\"Generation complete\")", gen_finished_pos)
             if completion_pos > 0:
@@ -365,79 +374,81 @@ def add_automatic_training_generation_finished():
                 print(f"Error updating memory: {e}")
 """
                     content = content[:line_end] + memory_update_code + content[line_end:]
-                    
+
                     # Write updated content
                     with open(gui_file, "w") as f:
                         f.write(content)
-                    
+
                     logger.info("Added memory update to generation_finished")
                     return True
-        
+
         logger.warning("Could not find right location to add memory update")
         return False
     except Exception as e:
         logger.error(f"Error adding automatic training: {e}")
         return False
 
+
 def main():
     logger.info("Starting memory training patch...")
-    
+
     success_count = 0
     total_count = 5
-    
+
     # Patch memory adapter
     if patch_memory_adapter():
         logger.info("Memory adapter patched successfully")
         success_count += 1
     else:
         logger.error("Failed to patch memory adapter")
-    
+
     # Patch memory visualization widget
     if patch_memory_visualization():
         logger.info("Memory visualization patched successfully")
         success_count += 1
     else:
         logger.error("Failed to patch memory visualization")
-    
+
     # Update memory guidance class
     if update_memory_guidance():
         logger.info("Memory guidance updated successfully")
         success_count += 1
     else:
         logger.error("Failed to update memory guidance")
-    
+
     # Update memory handler
     if update_memory_handler():
         logger.info("Memory handler updated successfully")
         success_count += 1
     else:
         logger.error("Failed to update memory handler")
-    
+
     # Add automatic training to generation_finished
     if add_automatic_training_generation_finished():
         logger.info("Automatic training added to generation_finished")
         success_count += 1
     else:
         logger.error("Failed to add automatic training to generation_finished")
-    
+
     logger.info(f"Memory training patch complete: {success_count}/{total_count} steps successful")
-    
-    print("\n" + "="*60)
+
+    print("\n" + "=" * 60)
     print(" Memory Training Feature Enablement")
-    print("="*60)
+    print("=" * 60)
     print(f"\nCompleteness: {success_count}/{total_count} steps successful")
-    
+
     if success_count == total_count:
         print("\n✅ Memory training has been fully enabled!")
     elif success_count > 0:
         print("\n⚠️ Memory training has been partially enabled.")
     else:
         print("\n❌ Failed to enable memory training.")
-    
+
     print("\nPlease restart the application for the changes to take effect.")
     print("After restart, you should see an 'Auto-train after generation' checkbox in the Memory tab.")
     print("This will allow automatic training of the memory system after each generation.")
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
+
 
 if __name__ == "__main__":
     main()
