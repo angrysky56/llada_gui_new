@@ -1,7 +1,7 @@
 
 # LLaDA GUI new version
 
-# 3/8/25 Much thanks to automenta for the advanced work.
+# 3/8/25 Much thanks to [automenta](https://github.com/automenta) for the advanced work.
 [GUI Remix, Refactoring, Optimization](https://github.com/angrysky56/llada_gui_new/pull/2)
 ![alt text](image.png)
 
