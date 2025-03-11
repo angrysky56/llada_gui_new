@@ -12,6 +12,7 @@ import time
 
 import psutil
 import torch
+from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
 from core.config import MEMORY_MONITORING_SETTINGS
@@ -37,6 +38,22 @@ class MemoryMonitor(QObject):
 
     def __init__(self, check_interval=MEMORY_CHECK_INTERVAL, parent=None):
         super().__init__(parent)
+
+        # Ensure a QApplication exists before creating any QWidget
+        if not QApplication.instance():
+            self.app = QApplication([])
+            logger.info("Created QApplication instance in MemoryMonitor")
+        else:
+            self.app = QApplication.instance()
+            logger.info("Using existing QApplication instance in MemoryMonitor")
+
+        # Ensure a QApplication exists before creating any QWidget
+        if not QApplication.instance():
+            self.app = QApplication([])
+            logger.info("Created QApplication instance in MemoryMonitor")
+        else:
+            self.app = QApplication.instance()
+            logger.info("Using existing QApplication instance in MemoryMonitor")
         self.check_interval = check_interval
         self.running = False
         self.timer = None

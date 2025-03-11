@@ -64,7 +64,10 @@ This is a GUI wrapper for the [LLaDA model](https://github.com/ML-GSAI/LLaDA), a
 
 2. Use the provided installation script:
    ```
+   # Make executable
    chmod +x install.sh
+   
+   # Install everything
    ./install.sh
    ```
    
@@ -73,13 +76,8 @@ This is a GUI wrapper for the [LLaDA model](https://github.com/ML-GSAI/LLaDA), a
    - Install all required packages
    - Apply memory integration fixes
    - Create a desktop icon for easy access
-   - Check for the LLaDA model (downloading if needed)
-
-3. Create a desktop icon (if not created during installation):
-   ```
-   ./create_desktop_icon.sh
-   ```
-   This will create a desktop shortcut for easy access to LLaDA GUI with memory integration.
+   - Check for the LLaDA model on first generate (downloading to /data if needed)
+   - Create a desktop icon
 
 ## Usage
 
@@ -97,7 +95,12 @@ You can start the application in several ways:
    ```
    This script provides enhanced memory server management with automatic startup and cleanup.
 
-3. **Command-line options** (for advanced users):
+   If you have issues run:
+    ```
+    ./fix_all.py
+    ```
+
+3. **Command-line options** (because Claude kept messing up and insisted they weren't mistakes "For advanced users" lol):
    ```
    # Standard mode
    ./run.py --standard

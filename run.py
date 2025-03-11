@@ -30,6 +30,8 @@ parser.add_argument("--memory", action="store_true", help="Enable memory integra
 parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 parser.add_argument("--advanced-memory", action="store_true", help="Enable advanced memory management")
 parser.add_argument("--gpu-monitor", action="store_true", help="Enable detailed GPU monitoring")
+parser.add_argument("--ensure-qt-app", action="store_true", help="Ensure QApplication is created before widgets")
+
 args = parser.parse_args()
 
 # Make sure we're running from the right directory
@@ -76,7 +78,27 @@ def main(argv=None):
         global args
         args = parser.parse_args(argv)
 
-    # Setup advanced memory management by default
+    
+    # Create a QApplication instance if requested
+    if args.ensure_qt_app and 'QApplication' in globals():
+        app_instance = QApplication.instance()
+        if not app_instance:
+            logger.info("Creating QApplication instance early")
+            app = QApplication([])
+        else:
+            logger.info("QApplication instance already exists")
+
+
+    # Create a QApplication instance if requested
+    if args.ensure_qt_app and 'QApplication' in globals():
+        app_instance = QApplication.instance()
+        if not app_instance:
+            logger.info("Creating QApplication instance early")
+            app = QApplication([])
+        else:
+            logger.info("QApplication instance already exists")
+
+# Setup advanced memory management by default
     try:
         print("Initializing advanced memory management...")
         # Import and initialize memory management
@@ -145,7 +167,7 @@ def main(argv=None):
                 subprocess.run([sys.executable, fix_path], check=False)
 
             # Initialize memory system
-            from core.memory.memory_integration import initialize_memory
+            from core.memory.memory_init import initialize_memory
             if initialize_memory(start_server=True, max_retries=5):
                 logger.info("Memory integration initialized successfully")
             else:
@@ -202,7 +224,7 @@ def main(argv=None):
 
         if args.memory:
             # Use enhanced GUI with memory integration
-            from core.memory.memory_integration import enhance_llada_gui
+            from core.memory.memory_ui import enhance_llada_gui
             from gui.llada_gui import LLaDAGUI
             EnhancedLLaDAGUI = enhance_llada_gui(LLaDAGUI)
 

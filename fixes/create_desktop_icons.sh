@@ -2,8 +2,11 @@
 
 # Script to create desktop icons for LLaDA GUI
 
-# Get the absolute path to the project directory
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Get the absolute path to the project directory (parent of the fixes directory)
+FIXES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$FIXES_DIR")"
+
+echo "Creating desktop icons with project directory: $PROJECT_DIR"
 
 # Create standard desktop icon
 echo "Creating standard LLaDA GUI desktop icon..."

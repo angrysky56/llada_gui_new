@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Improved LLaDA GUI Memory Integration Launcher
-# This script properly sets up and launches the LLaDA GUI with memory integration.
+# Consolidated fix script version
 
 # Get script directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -19,7 +19,6 @@ fi
 # Kill any existing memory server processes
 echo "Cleaning up any existing memory server processes..."
 pkill -f "server.py" 2>/dev/null || true
-pkill -f "server.js" 2>/dev/null || true
 pkill -f "memory_server" 2>/dev/null || true
 
 # Wait for processes to terminate
@@ -33,19 +32,11 @@ if [ -n "$PORT_IN_USE" ]; then
     sleep 1
 fi
 
-# Apply memory fixes
-echo "Applying memory fixes..."
-"$PYTHON" fix_titan_memory.py
+# Apply all fixes in one go using our consolidated fix script
+echo "Applying all fixes..."
+"$PYTHON" fix_all.py
 
-# Delete existing memory model to avoid loading issues
-echo "Deleting existing memory model to ensure clean state..."
-rm -f core/memory/memory_data/titan_memory_model.json
-
-# Run the memory database fix
-echo "Running memory database fix..."
-"$PYTHON" fix_memory_db.py
-
-# Start the memory server using direct_memory_fix.py
+# Start the memory server
 echo "Starting memory server..."
 "$PYTHON" direct_memory_fix.py &
 MEMORY_PID=$!
@@ -64,7 +55,7 @@ echo "Memory server is running on port 3000."
 echo "Starting LLaDA GUI with memory integration..."
 
 # Run the application
-"$PYTHON" run.py --memory
+"$PYTHON" run.py --memory --ensure-qt-app
 
 # Clean up
 echo "Shutting down memory server..."
@@ -74,7 +65,6 @@ fi
 
 # Final cleanup - make sure all memory server processes are stopped
 pkill -f "server.py" 2>/dev/null || true
-pkill -f "server.js" 2>/dev/null || true
 pkill -f "memory_server" 2>/dev/null || true
 
 echo "Memory integration shutdown complete."

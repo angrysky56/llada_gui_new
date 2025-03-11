@@ -531,7 +531,7 @@ try:
 
         # Import from run.py
         from gui.llada_gui import LLaDAGUI
-        from core.memory.memory_integration import enhance_llada_gui
+        from core.memory.memory_ui import enhance_llada_gui
 
         # Initialize app
         app = QApplication(sys.argv)

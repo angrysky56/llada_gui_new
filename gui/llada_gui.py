@@ -561,7 +561,7 @@ class LLaDAGUI(QMainWindow):
 
         if memory_enabled:
             try:
-                from core.memory.memory_integration import initialize_memory
+                from core.memory.memory_init import initialize_memory
                 self.status_label.setText("Initializing memory system...")
                 if initialize_memory(start_server=True):
                     self.status_label.setText("Memory system initialized")
@@ -582,7 +582,7 @@ class LLaDAGUI(QMainWindow):
         if enabled:
             # Start memory server
             try:
-                from core.memory.memory_integration import initialize_memory
+                from core.memory.memory_init import initialize_memory
                 self.status_label.setText("Starting memory server...")
                 if initialize_memory(start_server=True):
                     self.status_label.setText("Memory server started")

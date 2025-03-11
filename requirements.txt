@@ -11,3 +11,4 @@ tqdm
 accelerate
 huggingface_hub
 requests
+flask
