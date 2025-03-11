@@ -30,6 +30,18 @@ NUM_DIFFUSION_STEPS = SEQ_LEN
 def linear_beta_schedule(num_steps: int, beta_start: float = 0.0001, beta_end: float = 0.02) -> torch.Tensor:
     return torch.linspace(beta_start, beta_end, num_steps)
 
+
+def add_gumbel_noise(logits: torch.Tensor, temperature: float = 1.0) -> torch.Tensor:
+    """Add Gumbel noise to logits for sampling."""
+    if temperature == 0:
+        return logits
+    
+    # Sample Gumbel noise
+    u = torch.rand_like(logits)
+    gumbel_noise = -torch.log(-torch.log(u + 1e-9) + 1e-9)
+    
+    # Apply temperature and add noise
+    return logits + gumbel_noise * temperature
 # Helper Functions
 def process_tokens(tokens: torch.Tensor) -> torch.Tensor:
     return torch.clamp(tokens, 0, ASCII_VOCAB_SIZE)

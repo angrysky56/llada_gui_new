@@ -100,12 +100,12 @@ def main():
         "direct_memory_fix.py": "direct_memory_fix.py"
     }
     
-    print("\n[1/3] Copying essential scripts to main directory...")
+    print("\n[1/4] Copying essential scripts to main directory...")
     for source, dest in essential_scripts.items():
         copy_script_to_main(source, dest)
     
     # 2. Run memory database and server fixes
-    print("\n[2/3] Running memory system fixes...")
+    print("\n[2/4] Running memory system fixes...")
     memory_fixes = [
         "fix_memory_db.py",
         "fix_titan_memory.py",
@@ -118,7 +118,7 @@ def main():
         run_script(fix)
     
     # 3. Run GUI integration fixes and create desktop icons
-    print("\n[3/3] Running GUI integration fixes...")
+    print("\n[3/4] Running GUI integration fixes...")
     gui_fixes = [
         "fix_memory_gui_instance.py", 
         "patch_memory_widget.py",
@@ -128,6 +128,15 @@ def main():
     ]
     
     for fix in gui_fixes:
+        run_script(fix)
+    
+    # 4. Run training module fixes
+    print("\n[4/4] Running training module fixes...")
+    training_fixes = [
+        "fix_train2.py"
+    ]
+    
+    for fix in training_fixes:
         run_script(fix)
     
     print("\n" + "=" * 60)

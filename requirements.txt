@@ -12,3 +12,4 @@ accelerate
 huggingface_hub
 requests
 flask
+pyqtgraph 
