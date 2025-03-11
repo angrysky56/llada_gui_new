@@ -46,6 +46,27 @@ def add_gumbel_noise(logits: torch.Tensor, temperature: float = 1.0) -> torch.Te
 def process_tokens(tokens: torch.Tensor) -> torch.Tensor:
     return torch.clamp(tokens, 0, ASCII_VOCAB_SIZE)
 
+
+def get_num_transfer_tokens(mask_indices: torch.Tensor, steps: int) -> torch.Tensor:
+    """Calculate how many masked tokens to unmask at each step."""
+    # Count the total number of tokens that need to be unmasked
+    total_tokens = mask_indices.sum(dim=1)
+    
+    # Allocate approximately equal tokens per step
+    token_rates = total_tokens.float() / steps
+    
+    # Create a tensor of the number of tokens to transfer at each step
+    # We'll do this by calculating a sequence of cumulative tokens and taking the differences
+    cumulative_tokens = torch.outer(token_rates, torch.arange(steps + 1, device=token_rates.device))
+    cumulative_tokens = torch.floor(cumulative_tokens).long()
+    
+    # Ensure we don't exceed the total tokens
+    cumulative_tokens = torch.minimum(cumulative_tokens, total_tokens.unsqueeze(1).expand(-1, steps + 1))
+    
+    # Get the token transfers per step by taking differences
+    num_tokens_per_step = cumulative_tokens[:, 1:] - cumulative_tokens[:, :-1]
+    
+    return num_tokens_per_step
 def forward_process(input_ids: torch.Tensor, t: torch.Tensor, betas: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     b, l = input_ids.shape
     alpha_t = torch.gather(1 - betas.cpu(), 0, t.cpu()).to(input_ids.device)  # 1 - beta_t

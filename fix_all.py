@@ -133,7 +133,8 @@ def main():
     # 4. Run training module fixes
     print("\n[4/4] Running training module fixes...")
     training_fixes = [
-        "fix_train2.py"
+        "fix_train2.py",
+        "fix_train2_transfer_tokens.py"
     ]
     
     for fix in training_fixes:
