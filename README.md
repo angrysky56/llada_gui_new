@@ -4,6 +4,12 @@
 # 3/8/25 Much thanks to automenta for the advanced work.
 [GUI Remix, Refactoring, Optimization](https://github.com/angrysky56/llada_gui_new/pull/2)
 ![alt text](image.png)
+
+To try it out, run the following command after install:
+```
+./train2.py
+```
+
 # Currently you can run inference but the memory system is only partly functional ie it will make some vectors, but the rest of the memory model system is not properly integrated and only uses dummy output. Sorry not a coder.
 
 A graphical user interface for interacting with the LLaDA (Large Language Diffusion with mAsking) model with integrated cognitive memory.
